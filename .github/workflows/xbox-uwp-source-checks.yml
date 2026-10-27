@@ -1,0 +1,16 @@
+name: Xbox UWP port - source checks
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+  pull_request:
+    branches: [xbox-uwp-port]
+  workflow_dispatch:
+
+jobs:
+  source-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify UWP storage integration
+        run: python3 tools/uwp/check_storage_integration.py
