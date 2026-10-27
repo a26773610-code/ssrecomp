@@ -10,7 +10,8 @@ This branch is an initial staging area for a possible Xbox UWP x64 port of ssrec
 - [ ] Create UWP application entry point and package manifest
 - [x] Route melonDS local-file operations through UWP local path helper (initial implementation)
 - [ ] Audit UTF-8/Unicode filename handling and all other save/configuration call sites
-- [ ] Add Xbox gamepad support
+- [x] Add portable Xbox-to-DS gamepad button mapping and unit tests
+- [ ] Read physical Xbox controller state via UWP Gaming.Input and connect to melonDS
 - [x] Add Windows-hosted MSVC helper smoke test (desktop compilation only)
 - [ ] Verify CI results and build with actual UWP SDK/toolchain
 - [ ] Test installation and runtime in Xbox Developer Mode
