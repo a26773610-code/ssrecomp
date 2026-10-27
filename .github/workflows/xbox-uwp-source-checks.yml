@@ -14,6 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify UWP storage integration
         run: python3 tools/uwp/check_storage_integration.py
+      - name: Build and test portable Xbox-to-DS input mapping
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad.cpp tests/uwp/gamepad_test.cpp -o /tmp/gamepad_test
+          /tmp/gamepad_test
 
   windows-storage-smoke:
     runs-on: windows-latest
@@ -24,3 +28,9 @@ jobs:
         run: |
           call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           cl /nologo /std:c++17 /EHsc /c frontend\uwp\storage.cpp /Fo:%TEMP%\ssrecomp_uwp_storage.obj
+      - name: Build and test gamepad mapping with MSVC
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /std:c++17 /EHsc frontend\uwp\gamepad.cpp tests\uwp\gamepad_test.cpp /Fe:%TEMP%\ssrecomp_gamepad_test.exe
+          "%TEMP%\ssrecomp_gamepad_test.exe"
