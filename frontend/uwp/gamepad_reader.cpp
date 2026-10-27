@@ -31,6 +31,12 @@ bool ReadXboxGamepad(GamepadState& state)
     state.dpad_right = pressed(Buttons::DPadRight);
     state.left_shoulder = pressed(Buttons::LeftShoulder);
     state.right_shoulder = pressed(Buttons::RightShoulder);
+    state.left_x = static_cast<float>(reading.LeftThumbstickX);
+    state.left_y = static_cast<float>(reading.LeftThumbstickY);
+    state.right_x = static_cast<float>(reading.RightThumbstickX);
+    state.right_y = static_cast<float>(reading.RightThumbstickY);
+    state.left_trigger = static_cast<float>(reading.LeftTrigger);
+    state.right_trigger = static_cast<float>(reading.RightTrigger);
     return true;
 }
 }
