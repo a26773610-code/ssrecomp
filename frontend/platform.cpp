@@ -11,6 +11,9 @@
 #include "Platform.h"
 #include "SPI_Firmware.h"
 #include "host.h"
+#if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+#include "uwp/storage.h"
+#endif
 
 namespace melonDS::Platform
 {
@@ -21,7 +24,19 @@ void SignalStop(StopReason reason, void*)
     Host::StopRequested = true;
 }
 
-std::string GetLocalFilePath(const std::string& filename) { return filename; }
+std::string GetLocalFilePath(const std::string& filename)
+{
+#if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+    // Only local application data is redirected. ROM and other explicit
+    // resource paths must be handled by their own file-selection logic.
+    if (filename.find('/') != std::string::npos || filename.find('\\\\') != std::string::npos ||
+        filename == "." || filename == "..") return {};
+    const auto root = ssrecomp::uwp::LocalDataDirectoryUtf8();
+    return root.empty() ? std::string{} : root + "\\\\" + filename;
+#else
+    return filename;
+#endif
+}
 
 static const char* ModeString(FileMode mode, bool exists)
 {
