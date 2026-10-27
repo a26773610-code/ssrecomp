@@ -5,15 +5,17 @@ This branch is an initial staging area for a possible Xbox UWP x64 port of ssrec
 ## Status
 
 - [x] Separate development branch
-- [x] UWP local storage path helper (not yet wired into the build)
+- [x] UWP local storage path helper wired into CMake and melonDS local-file calls
 - [ ] Audit SDL2 UWP support and melonDS dependencies
 - [ ] Create UWP application entry point and package manifest
-- [ ] Integrate UWP-specific save/configuration paths
+- [x] Route melonDS local-file operations through UWP local path helper (initial implementation)
+- [ ] Audit UTF-8/Unicode filename handling and all other save/configuration call sites
 - [ ] Add Xbox gamepad support
-- [ ] Add Windows-hosted CI build and verify UWP SDK/toolchain
+- [x] Add Windows-hosted MSVC helper smoke test (desktop compilation only)
+- [ ] Verify CI results and build with actual UWP SDK/toolchain
 - [ ] Test installation and runtime in Xbox Developer Mode
 
-No functional Xbox build is available yet. The helper in frontend/uwp is not yet compiled or called. Do not commit copyrighted game ROMs, BIOS files or private signing keys.
+No functional Xbox build is available yet. The helper is included in CMake and referenced by melonDS local-file functions, but UWP execution has not been compiled or tested. Do not commit copyrighted game ROMs, BIOS files or private signing keys.
 
 ## Distribution
 
