@@ -12,8 +12,9 @@ This branch is an initial staging area for a possible Xbox UWP x64 port of ssrec
 - [ ] Audit UTF-8/Unicode filename handling and all other save/configuration call sites
 - [x] Add portable Xbox-to-DS gamepad button mapping and unit tests
 - [x] Implement Windows.Gaming.Input controller polling module (not yet runtime-tested)
-- [ ] Connect polled buttons to melonDS frame input and validate on hardware
-- [x] Add Windows-hosted MSVC helper smoke test (desktop compilation only)
+- [x] Connect polled buttons and analog axes to existing frontend PadState (source integration)
+- [ ] Validate native Xbox input on hardware
+- [x] Add Windows-hosted MSVC desktop and UWP-macro helper compile smoke checks (CI results not verified)
 - [ ] Verify CI results and build with actual UWP SDK/toolchain
 - [ ] Test installation and runtime in Xbox Developer Mode
 
@@ -27,8 +28,12 @@ A build that runs in Developer Mode does not imply that it can be installed in R
 
 The repository does not include `gen/sources.cmake`, which the root CMakeLists.txt includes. The game cannot be built from the public source checkout alone. The existing generation workflow must be reviewed and run with a legally obtained ROM outside the public repository. Never upload ROMs or derived copyrighted game data to public GitHub Actions artifacts.
 
-The gamepad reader currently polls the first UWP Gamepad and is not yet connected to the main frame loop. The Windows CI smoke test is **not** a UWP packaging test.
+The gamepad reader polls the first UWP Gamepad and merges its input into the existing frontend frame input. The Windows CI smoke test compiles helper translation units under UWP macros, but is **not** a UWP application packaging or runtime test.
 
 ## Xbox One S input integration
 
 The main frontend now merges Windows.Gaming.Input gamepad polling into the existing SDL PadState, including sticks and triggers (Windows Y is inverted to match SDL). This is source-level integration only: no Xbox One S UWP runtime or package test has passed. The existing UWP build, startup/windowing and game generation remain blocking tasks.
+
+## CI improvements
+
+Windows smoke checks now locate the installed MSVC toolchain with vswhere rather than assuming the Visual Studio Enterprise path. The workflow compiles both ordinary Windows fallback branches and UWP-specific C++/WinRT storage/controller branches. These checks must still be confirmed by a green GitHub Actions run; compiling helpers alone does not establish that melonDS, SDL2 or the generated game can build for Xbox.
