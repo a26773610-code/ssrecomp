@@ -11,6 +11,9 @@
 #include "Platform.h"
 #include "SPI_Firmware.h"
 #include "host.h"
+#if defined(_WIN32)
+#include <winapifamily.h>
+#endif
 #if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
 #include "uwp/storage.h"
 #endif
@@ -62,7 +65,11 @@ bool FileExists(const std::string& name)
     fclose(f);
     return true;
 }
-bool LocalFileExists(const std::string& name) { return FileExists(name); }
+bool LocalFileExists(const std::string& name)
+{
+    const auto path = GetLocalFilePath(name);
+    return !path.empty() && FileExists(path);
+}
 
 FileHandle* OpenFile(const std::string& path, FileMode mode)
 {
@@ -70,7 +77,11 @@ FileHandle* OpenFile(const std::string& path, FileMode mode)
     if (!m) return nullptr;
     return (FileHandle*)fopen(path.c_str(), m);
 }
-FileHandle* OpenLocalFile(const std::string& path, FileMode mode) { return OpenFile(path, mode); }
+FileHandle* OpenLocalFile(const std::string& path, FileMode mode)
+{
+    const auto localPath = GetLocalFilePath(path);
+    return localPath.empty() ? nullptr : OpenFile(localPath, mode);
+}
 
 bool CheckFileWritable(const std::string& filepath)
 {
@@ -79,7 +90,11 @@ bool CheckFileWritable(const std::string& filepath)
     fclose(f);
     return true;
 }
-bool CheckLocalFileWritable(const std::string& filepath) { return CheckFileWritable(filepath); }
+bool CheckLocalFileWritable(const std::string& filepath)
+{
+    const auto localPath = GetLocalFilePath(filepath);
+    return !localPath.empty() && CheckFileWritable(localPath);
+}
 
 bool CloseFile(FileHandle* file) { return fclose((FILE*)file) == 0; }
 bool IsEndOfFile(FileHandle* file) { return feof((FILE*)file) != 0; }
