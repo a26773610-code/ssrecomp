@@ -28,3 +28,7 @@ A build that runs in Developer Mode does not imply that it can be installed in R
 The repository does not include `gen/sources.cmake`, which the root CMakeLists.txt includes. The game cannot be built from the public source checkout alone. The existing generation workflow must be reviewed and run with a legally obtained ROM outside the public repository. Never upload ROMs or derived copyrighted game data to public GitHub Actions artifacts.
 
 The gamepad reader currently polls the first UWP Gamepad and is not yet connected to the main frame loop. The Windows CI smoke test is **not** a UWP packaging test.
+
+## Xbox One S input integration
+
+The main frontend now merges Windows.Gaming.Input gamepad polling into the existing SDL PadState, including sticks and triggers (Windows Y is inverted to match SDL). This is source-level integration only: no Xbox One S UWP runtime or package test has passed. The existing UWP build, startup/windowing and game generation remain blocking tasks.
