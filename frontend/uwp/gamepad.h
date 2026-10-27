@@ -15,6 +15,8 @@ struct GamepadState {
     bool menu = false, view = false;
     bool dpad_up = false, dpad_down = false, dpad_left = false, dpad_right = false;
     bool left_shoulder = false, right_shoulder = false;
+    float left_x = 0, left_y = 0, right_x = 0, right_y = 0;
+    float left_trigger = 0, right_trigger = 0;
 };
 
 std::uint16_t MapGamepadToDsButtons(const GamepadState& state);
