@@ -1,5 +1,9 @@
 #include "storage.h"
 
+#if defined(_WIN32)
+#include <winapifamily.h>
+#endif
+
 #if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
 #include <winrt/Windows.Storage.h>
 #include <winrt/base.h>
