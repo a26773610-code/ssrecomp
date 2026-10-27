@@ -27,12 +27,15 @@ void SignalStop(StopReason reason, void*)
 std::string GetLocalFilePath(const std::string& filename)
 {
 #if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
-    // Only local application data is redirected. ROM and other explicit
-    // resource paths must be handled by their own file-selection logic.
-    if (filename.find('/') != std::string::npos || filename.find('\\\\') != std::string::npos ||
-        filename == "." || filename == "..") return {};
+    // Redirect simple local filenames only. ROM/resource paths need
+    // a separate sandbox-aware file selection mechanism.
+    if (filename.empty() || filename == "." || filename == ".." ||
+        filename.find('/') != std::string::npos ||
+        filename.find('\\') != std::string::npos ||
+        filename.find(':') != std::string::npos)
+        return {};
     const auto root = ssrecomp::uwp::LocalDataDirectoryUtf8();
-    return root.empty() ? std::string{} : root + "\\\\" + filename;
+    return root.empty() ? std::string{} : root + "\\" + filename;
 #else
     return filename;
 #endif
