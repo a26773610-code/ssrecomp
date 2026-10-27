@@ -48,6 +48,8 @@ set(SSRECOMP_SOURCES
     frontend/main.cpp
     frontend/platform.cpp
     frontend/uwp/storage.cpp
+    frontend/uwp/gamepad.cpp
+    frontend/uwp/gamepad_reader.cpp
     runtime/recomp_rt.cpp
     runtime/recomp_mem.cpp
     "${SSR_GENERATED_DIR}/apps_table.cpp"
