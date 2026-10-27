@@ -45,6 +45,7 @@
 #include "RTC.h"
 #include "Savestate.h"
 #include "host.h"
+#include "uwp/gamepad_reader.h"
 #include "layout.h"
 #include "ui.h"
 #include "merged.h"
@@ -894,6 +895,32 @@ static PadState ReadPad(Pads& pads)
             merge(st.ly, SDL_JoystickGetAxis(j, 1) / 32767.0f);
         }
     }
+#if defined(_WIN32)
+    // On Xbox UWP, SDL may not expose the physical controller. Merge the
+    // native Windows.Gaming.Input state into the existing frontend pipeline.
+    ssrecomp::uwp::GamepadState xbox;
+    if (ssrecomp::uwp::ReadXboxGamepad(xbox))
+    {
+        st.btn[PAD_A] |= xbox.a;
+        st.btn[PAD_B] |= xbox.b;
+        st.btn[PAD_X] |= xbox.x;
+        st.btn[PAD_Y] |= xbox.y;
+        st.btn[PAD_START] |= xbox.menu;
+        st.btn[PAD_BACK] |= xbox.view;
+        st.btn[PAD_UP] |= xbox.dpad_up;
+        st.btn[PAD_DOWN] |= xbox.dpad_down;
+        st.btn[PAD_LEFT] |= xbox.dpad_left;
+        st.btn[PAD_RIGHT] |= xbox.dpad_right;
+        st.btn[PAD_LB] |= xbox.left_shoulder;
+        st.btn[PAD_RB] |= xbox.right_shoulder;
+        merge(st.lx, xbox.left_x);
+        merge(st.ly, -xbox.left_y); // SDL uses positive Y downwards.
+        merge(st.rx, xbox.right_x);
+        merge(st.ry, -xbox.right_y);
+        merge(st.lt, xbox.left_trigger);
+        merge(st.rt, xbox.right_trigger);
+    }
+#endif
     return st;
 }
 
