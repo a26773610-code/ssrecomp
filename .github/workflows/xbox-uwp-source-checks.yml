@@ -27,14 +27,27 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile storage helper with MSVC (desktop compatibility only)
+      - name: Find Visual Studio C++ build tools
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $installation) { throw "MSVC C++ tools not installed" }
+          $vcvars = Join-Path $installation "VC\\Auxiliary\\Build\\vcvars64.bat"
+          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found" }
+          "VCVARS=$vcvars" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Compile portable helpers with MSVC
         shell: cmd
         run: |
-          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cl /nologo /std:c++17 /EHsc /c frontend\uwp\storage.cpp /Fo:%TEMP%\ssrecomp_uwp_storage.obj
-      - name: Build and test gamepad mapping with MSVC
+          call "%VCVARS%"
+          cl /nologo /std:c++17 /EHsc /W4 /WX /c frontend\\uwp\\storage.cpp /Fo:%TEMP%\\ssrecomp_uwp_storage.obj
+          cl /nologo /std:c++17 /EHsc /W4 /WX frontend\\uwp\\gamepad.cpp tests\\uwp\\gamepad_test.cpp /Fe:%TEMP%\\ssrecomp_gamepad_test.exe
+          "%TEMP%\\ssrecomp_gamepad_test.exe"
+          cl /nologo /std:c++17 /EHsc /W4 /WX frontend\\uwp\\gamepad_reader.cpp tests\\uwp\\gamepad_reader_test.cpp /Fe:%TEMP%\\ssrecomp_reader_test.exe
+          "%TEMP%\\ssrecomp_reader_test.exe"
+      - name: Compile UWP-specific WinRT helpers with MSVC
         shell: cmd
         run: |
-          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cl /nologo /std:c++17 /EHsc frontend\uwp\gamepad.cpp tests\uwp\gamepad_test.cpp /Fe:%TEMP%\ssrecomp_gamepad_test.exe
-          "%TEMP%\ssrecomp_gamepad_test.exe"
+          call "%VCVARS%"
+          cl /nologo /std:c++17 /EHsc /W4 /WX /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\storage.cpp /Fo:%TEMP%\\ssrecomp_uwp_storage_app.obj
+          cl /nologo /std:c++17 /EHsc /W4 /WX /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\gamepad_reader.cpp /Fo:%TEMP%\\ssrecomp_uwp_reader_app.obj
