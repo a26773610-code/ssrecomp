@@ -18,6 +18,10 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad.cpp tests/uwp/gamepad_test.cpp -o /tmp/gamepad_test
           /tmp/gamepad_test
+      - name: Test non-UWP controller reader fallback
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad_reader.cpp tests/uwp/gamepad_reader_test.cpp -o /tmp/gamepad_reader_test
+          /tmp/gamepad_reader_test
 
   windows-storage-smoke:
     runs-on: windows-latest
