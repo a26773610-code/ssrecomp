@@ -14,6 +14,10 @@ checks = {
     "Storage API declared": "std::string LocalDataDirectoryUtf8();" in header,
     "Storage API implemented": "std::string LocalDataDirectoryUtf8()" in source,
     "UWP sandbox storage selected": "ApplicationData::Current().LocalFolder()" in source,
+    "Windows platform family header included": "#include <winapifamily.h>" in platform,
+    "Local file existence uses sandbox": "FileExists(path)" in platform,
+    "Local file open uses sandbox": "OpenFile(localPath, mode)" in platform,
+    "Local write check uses sandbox": "CheckFileWritable(localPath)" in platform,
 }
 for label, passed in checks.items():
     print(f"{'PASS' if passed else 'FAIL'}: {label}")
