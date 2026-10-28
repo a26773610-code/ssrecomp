@@ -18,11 +18,21 @@ void T_UNK(ARM* cpu);
 
 using namespace melonDS::ARMInterpreter;
 
+// The UWP game build uses MSVC. Keep the generated code's branch hints and
+// forced inlining portable without changing ARM instruction semantics.
+#if defined(_MSC_VER) && !defined(__clang__)
+#define RC_UNLIKELY(x) (!!(x))
+#define RC_LIKELY(x) (!!(x))
+#define RC_FORCE_INLINE __forceinline
+#else
 #define RC_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#define RC_LIKELY(x) __builtin_expect(!!(x), 1)
+#define RC_FORCE_INLINE inline __attribute__((always_inline))
+#endif
 
 // ARMv5::CodeRead32(addr, branch), inlined: the prefetch of every recompiled instruction
 // goes through it. Has to stay identical to the function in CP15.cpp.
-static inline __attribute__((always_inline)) melonDS::u32 rc_code_read32(melonDS::ARMv5* cpu, melonDS::u32 addr, bool branch = false)
+static RC_FORCE_INLINE melonDS::u32 rc_code_read32(melonDS::ARMv5* cpu, melonDS::u32 addr, bool branch = false)
 {
     if (addr < cpu->ITCMSize)
     {
@@ -32,7 +42,7 @@ static inline __attribute__((always_inline)) melonDS::u32 rc_code_read32(melonDS
     melonDS::s32 cycles = cpu->RegionCodeCycles;
     if (cycles == 0xFF) cycles = (branch || !(addr & 0x1F)) ? 3 /* kCodeCacheTiming in CP15.cpp */ : 1;
     cpu->CodeCycles = cycles;
-    if (__builtin_expect(cpu->CodeMem.Mem != nullptr, 1)) return *(melonDS::u32*)&cpu->CodeMem.Mem[addr & cpu->CodeMem.Mask];
+    if (RC_LIKELY(cpu->CodeMem.Mem != nullptr)) return *(melonDS::u32*)&cpu->CodeMem.Mem[addr & cpu->CodeMem.Mask];
     return cpu->CodeRead32(addr, branch);
 }
 
