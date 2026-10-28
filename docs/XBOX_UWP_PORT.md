@@ -37,3 +37,12 @@ The main frontend now merges Windows.Gaming.Input gamepad polling into the exist
 ## CI improvements
 
 Windows smoke checks now locate the installed MSVC toolchain with vswhere rather than assuming the Visual Studio Enterprise path. The workflow compiles both ordinary Windows fallback branches and UWP-specific C++/WinRT storage/controller branches. These checks must still be confirmed by a green GitHub Actions run; compiling helpers alone does not establish that melonDS, SDL2 or the generated game can build for Xbox.
+
+## Validation progress — Xbox One S
+
+- The user's private US SoulSilver ROM was checked locally against the repository's public `layouts/soulsilver-us.json` reference: **all 121 code section SHA-1 digests and lengths matched**, including ARM9, ITCM, and overlays. The full ROM hash differs, so this is a code compatibility conclusion only, not proof that all resources are identical.
+- Added `tools/uwp/verify_soulsilver_code.py` to repeat the section check on any local machine without copying/extracting ROM data to GitHub.
+- `frontend/uwp/diagnostic_main.cpp` is a native UWP CoreWindow/Direct3D 11 diagnostic that paints blue and changes colors when pressing Xbox A/B/X/Y. It is **not the Pokémon game**.
+- The standalone diagnostic package workflow is intended to compile an x64 AppContainer EXE, pack an APPX, sign it using a temporary certificate and upload only the diagnostic APPX plus public certificate. C++ CRT must use `/MD` rather than unsupported UWP `/MT`; the manifest declares the Microsoft.VCLibs UWP framework dependency.
+- CI runs are triggered via draft PR [#1](https://github.com/a26773610-code/ssrecomp/pull/1). Their success and actual runtime behavior still need verification; a green compile will not itself mean the game can launch.
+- Next prerequisite for an actual SoulSilver executable: locally generate `gen/` from a privately held ROM and compile the SDL2/melonDS/game frontend with an Xbox-compatible UWP entrypoint and graphics/audio surface. Do not publish generated game code or ROM as CI artifacts.
