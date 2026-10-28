@@ -114,3 +114,15 @@ The next hardware milestone is **a native melonDS core library compiled for UWP 
 After that, the game/frontend must be linked with SDL2 WinRT and the user's
 private generated code; packaging then must include the required SDL runtime and
 app manifest. Do not describe a core-only or diagnostic APPX as the full game.
+
+## Verified recompilation and widescreen compatibility (October 2026)
+
+**Private user ROM recompilation:** all 121 SoulSilver US game code sections matched the reference layout. Running the UWP-aware recompiler locally generated 122 sections (including the built-in ARM9 BIOS), 25,120 chunks and 1,685,113 ARM9 instructions. There were 71 generated instruction source files and 122 C++ byte-image files, totaling about 368 MB of private sources. Code generation completed in about 10 seconds. A representative generated instruction translation unit, the game dispatch table, and a C++ code-image object compiled or passed syntax checks locally. The layout-based application metadata step yielded 59 application descriptors. These checks DO NOT prove a full Xbox game build.
+
+**Widescreen/one-screen preservation:** The merged presentation and widened 3D renderer are already in the ssrecomp source. GPU3D_Wide.cpp previously used GCC-specific SIMD vector syntax unsupported by MSVC. ScalarWideVector.h supplies a tested four-lane fallback for Xbox MSVC, including numerical vector conversion and all-bits-set comparison masks. The original accelerated GCC/Clang path remains unchanged. The complete GPU3D_Wide.cpp passed an alternate local scalar-fallback C++20 syntax check; MSVC CI and real console frame rates remain unverified.
+
+**Xbox B input:** The game's UWP controller reader now registers a SystemNavigationManager.BackRequested handler after the SDL window is created, so the console's Back action should not close the game on B. The game separately reads B for Nintendo DS Cancel. This is not yet hardware-tested with SDL2.
+
+**ROM privacy and architecture:** Generated ARM9 code embeds code bytes from the user's private game ROM and is specific to that code layout. Only the open-source emulator/frontend and synthetic unit tests are committed. Do not upload private ROM, generated C++ or ROM-bearing EXE to public GitHub Actions. The user must compile their ROM-specific game executable privately, then place a compatible ROM file in the Xbox app's LocalState for cartridge assets. Simply dropping any ROM into the current diagnostic APPX cannot create a recompiled executable on the Xbox.
+
+**Build gates still outstanding:** (1) melonDS UWP core.lib MSVC x64 compile; (2) SDL2 WinRT UWP static library and non-XAML entry point, separately probed via xbox-uwp-sdl2-probe.yml; (3) full private ROM-specific C++ game compilation/link; (4) separate game APPX packaging and dependencies; (5) Xbox One S tests for merged fullscreen, input, touch cursor, audio, saves and performance.
