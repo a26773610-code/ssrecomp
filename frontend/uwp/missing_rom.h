@@ -76,6 +76,43 @@ inline void DrawText(SDL_Renderer* renderer, std::string label, int x, int y, in
 }
 }
 
+
+inline void ShowBootFailure(const char* reason)
+{
+    fprintf(stderr, "[Xbox UWP] BOOT FAILED: %s\\n", reason);
+    // Do not silently exit to the Xbox dashboard for recoverable startup errors.
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) return;
+    SDL_Window* window = SDL_CreateWindow("SSRecomp - Startup failed",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP);
+    if (!window) { SDL_Quit(); return; }
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    if (!renderer) { SDL_DestroyWindow(window); SDL_Quit(); return; }
+    SDL_RenderSetLogicalSize(renderer, 1280, 720);
+    InstallXboxBackHandler();
+    bool running = true;
+    while (running) {
+        SDL_Event event{};
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) running = false;
+            if (event.type == SDL_CONTROLLERBUTTONDOWN && event.cbutton.button == SDL_CONTROLLER_BUTTON_B) running = false;
+        }
+        SDL_SetRenderDrawColor(renderer, 45, 20, 28, 255);
+        SDL_RenderClear(renderer);
+        SDL_SetRenderDrawColor(renderer, 255, 237, 232, 255);
+        bootui::DrawText(renderer, "SOULSILVER STARTUP FAILED", 64, 160, 6);
+        bootui::DrawText(renderer, reason, 64, 295, 4);
+        bootui::DrawText(renderer, "CHECK LOCALSTATE LOG", 64, 420, 4);
+        bootui::DrawText(renderer, "PRESS B TO EXIT", 64, 525, 4);
+        SDL_RenderPresent(renderer);
+        SDL_Delay(50);
+    }
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
 inline bool WaitForPrivateRom(const std::string& romPath)
 {
     std::error_code ioError;
