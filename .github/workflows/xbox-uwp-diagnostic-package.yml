@@ -27,8 +27,8 @@ jobs:
         run: |
           $code = Get-Content frontend/uwp/diagnostic_main.cpp -Raw
           $manifest = Get-Content frontend/uwp/diagnostic_manifest.xml -Raw
-          if ($code -match 'init_apartment\\s*\\(') { throw "Do not force COM apartment before CoreApplication::Run" }
-          if ($manifest -notmatch 'Version="0\\.3\\.0\\.0"') { throw "Unexpected diagnostic package version" }
+          if ($code -match '(?m)^\s*(?:winrt::)?init_apartment\s*\(') { throw "Do not force COM apartment before CoreApplication::Run" }
+          if (-not $manifest.Contains('Version="0.3.0.0"')) { throw "Unexpected diagnostic package version" }
           Write-Host "CoreApplication apartment preserved; diagnostic manifest v0.3"
       - name: Compile native UWP CoreApplication diagnostic
         shell: pwsh
