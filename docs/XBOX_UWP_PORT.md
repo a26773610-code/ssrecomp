@@ -63,3 +63,17 @@ The v0.2 diagnostic makes the following changes:
 Open the Xbox Device Portal on a device on the same network as the Xbox, choose **File explorer**, navigate to **LocalAppData → SSRecomp.XboxUwpDiagnostic → LocalState**, and retrieve `ssrecomp-diagnostic.log`. It identifies the last successful stage and any failing `HRESULT` value. A log without `Run start` means launch or lifecycle was interrupted earlier. If the file does not exist, inspect portal crash reports and the Microsoft.VCLibs.140.00 prerequisite.
 
 This is a developer diagnostic, not a SoulSilver game executable. No code change is considered confirmed working on Xbox until retested on the console.
+
+## Xbox One S immediate exit: root cause confirmed by v0.2 LocalState log
+
+The user's Xbox Device Portal diagnostic log contains four instances of:
+
+```text
+Diagnostic v0.2 | WinRT exception escaped CoreApplication | HRESULT=0x80010106
+```
+
+`0x80010106` is `RPC_E_CHANGED_MODE`: an attempt to change a COM apartment already initialized with a different concurrency mode. Because the log never included `wWinMain entered`, the most likely faulting call was the explicit `init_apartment(apartment_type::single_threaded)` executed immediately before that log in `wWinMain`. This was an application initialization issue, not a ROM failure.
+
+Version **0.3.0.0** removes the forced COM apartment initialization and lets UWP's `CoreApplication::Run` manage its startup apartment, consistent with Microsoft's C++/WinRT Core App example. The standalone diagnostic workflow also checks that a future change does not reintroduce `init_apartment(` in the startup file. Package: `SSRecomp-Xbox-UWP-Diagnostic-v03.appx`, artifact: `xbox-uwp-diagnostic-v03-not-game`.
+
+To retest, uninstall the older app (each GitHub run issues a distinct temporary self-signed signing certificate), install the versioned APPX in Xbox Developer Mode with the included UWP VCLibs x64 framework dependency, and launch. If it still exits, retrieve `LocalState/ssrecomp-diagnostic.log` via Xbox Device Portal and check for v0.3 log entries. Compiling successfully on Windows is **not** confirmation that startup works on Xbox.
