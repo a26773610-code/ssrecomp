@@ -26,9 +26,9 @@ jobs:
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw "MSVC installation unavailable" }
-          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
           New-Item -ItemType Directory -Force staging | Out-Null
-          $cmd = 'call "' + $vcvars + '" && cl /nologo /std:c++17 /EHsc /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib d3d11.lib dxgi.lib'
+          $cmd = 'call "' + $vcvars + '" amd64 uwp && cl /nologo /std:c++17 /EHsc /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib d3d11.lib dxgi.lib'
           cmd /c $cmd
           if ($LASTEXITCODE -ne 0) { throw "UWP diagnostic compiler failed: $LASTEXITCODE" }
       - name: Create UWP manifest and diagnostic tiles
