@@ -363,7 +363,7 @@ void ARMv5::JumpTo(u32 addr, bool restorecpsr)
 // read and written here as NDS::ARM7Read/Write do it (with no JIT, nothing else happens
 // on a write), the rest goes through the bus as before.
 // (Not for the DSi, whose ARM7 bus is different.)
-static inline __attribute__((always_inline)) u8* ARM7DirectRAM(melonDS::NDS& nds, u32 addr)
+static inline u8* ARM7DirectRAM(melonDS::NDS& nds, u32 addr)
 {
     if (nds.ConsoleType != 0) return nullptr;
     switch (addr & 0xFF800000)
