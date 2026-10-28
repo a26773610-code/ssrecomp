@@ -4,7 +4,7 @@
 #include <winapifamily.h>
 #endif
 
-#if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
 #include <winrt/base.h>
 #include <winrt/Windows.Gaming.Input.h>
 
