@@ -14,6 +14,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify UWP storage integration
         run: python3 tools/uwp/check_storage_integration.py
+      - name: Verify ROM checker without accessing private game data
+        run: python3 tools/uwp/verify_soulsilver_code.py --help
+      - name: Validate standalone UWP package manifest XML
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('frontend/uwp/diagnostic_manifest.xml').getroot()
+          ns = '{http://schemas.microsoft.com/appx/manifest/foundation/windows10}'
+          assert root.find(ns + 'Identity').attrib['ProcessorArchitecture'] == 'x64'
+          assert root.find(ns + 'Applications') is not None
+          print('UWP manifest: valid XML, x64, application declared')
+          PY
       - name: Build and test portable Xbox-to-DS input mapping
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad.cpp tests/uwp/gamepad_test.cpp -o /tmp/gamepad_test
