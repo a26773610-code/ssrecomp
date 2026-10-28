@@ -63,8 +63,8 @@ jobs:
           $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\\10'
           $sdkIncludes = Join-Path $sdkRoot 'Include'
           if (-not (Test-Path $sdkIncludes)) { throw "Windows SDK include directory missing" }
-          $versions = Get-ChildItem $sdkIncludes -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'um\\winapifamily.h') }
-          if (-not $versions) { throw "No SDK with UWP family headers available" }
+          $versions = Get-ChildItem $sdkIncludes -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'shared\\winapifamily.h') }
+          if (-not $versions) { throw "No SDK containing shared/winapifamily.h available" }
           Write-Host "Windows SDK versions with UWP family headers:"
           $versions | ForEach-Object { Write-Host $_.Name }
           $tools = @('makeappx.exe', 'signtool.exe')
