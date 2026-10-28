@@ -124,6 +124,14 @@ struct DiagnosticView : implements<DiagnosticView, IFrameworkView>
     void Run()
     {
         Log("Run start");
+        // On Xbox, controller B also produces the system BackRequested event.
+        // If unhandled, the shell returns to DevHome even though input polling works.
+        // Handle it here so B can be reserved for the Nintendo DS cancel action.
+        auto navigation = SystemNavigationManager::GetForCurrentView();
+        auto backToken = navigation.BackRequested([this](auto const&, BackRequestedEventArgs const& args) {
+            args.Handled(true);
+            Log("Xbox B / BackRequested handled (stay in application)");
+        });
         try
         {
             window.Activate();
@@ -173,6 +181,7 @@ struct DiagnosticView : implements<DiagnosticView, IFrameworkView>
                 graphicsReady = false;
             }
         }
+        navigation.BackRequested(backToken);
         Log("Run ended (window closed)");
     }
     void Uninitialize()
