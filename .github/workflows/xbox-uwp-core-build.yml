@@ -1,0 +1,59 @@
+name: Xbox UWP game core portability
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - 'melonDS/**'
+      - 'cmake/**'
+      - '.github/workflows/xbox-uwp-core-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'melonDS/**'
+      - 'cmake/**'
+      - '.github/workflows/xbox-uwp-core-build.yml'
+  workflow_dispatch:
+
+jobs:
+  melonds-uwp-core:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Visual Studio and UWP SDK
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property catalog_productDisplayVersion
+          Write-Host "MSVC: $vs"
+          cmake --version
+          if (-not (Test-Path 'melonDS/src/CMakeLists.txt')) { throw "melonDS core source missing" }
+      - name: Configure melonDS core for UWP x64
+        shell: pwsh
+        run: |
+          $generators = @(cmake -G 2>&1)
+          if (($generators -join "`n") -match 'Visual Studio 18 2026') {
+            $generator = 'Visual Studio 18 2026'
+          } elseif (($generators -join "`n") -match 'Visual Studio 17 2022') {
+            $generator = 'Visual Studio 17 2022'
+          } else {
+            throw "No Visual Studio CMake generator found"
+          }
+          Write-Host "Using CMake generator: $generator"
+          cmake -S melonDS -B build/uwp-core -G "$generator" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0.26100.0 -DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0 -DBUILD_QT_SDL=OFF -DENABLE_JIT=OFF -DENABLE_OGLRENDERER=OFF -DENABLE_GDBSTUB=OFF -DENABLE_LTO_RELEASE=OFF -DSSR_PORTABLE_X86=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+          if ($LASTEXITCODE -ne 0) { throw "melonDS UWP CMake configuration failed" }
+      - name: Compile melonDS static core for UWP x64
+        shell: pwsh
+        run: |
+          cmake --build build/uwp-core --config Release --target core --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw "melonDS UWP x64 core compile failed" }
+      - name: Publish ROM-free build output and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbox-uwp-melonds-core-probe-no-game
+          path: |
+            build/uwp-core/CMakeCache.txt
+            build/uwp-core/melonDS/src/Release/core.lib
+          if-no-files-found: warn
