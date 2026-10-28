@@ -17,9 +17,12 @@ jobs:
     steps:
       - name: Enforce private repository boundary before checkout
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ($env:GITHUB_REPOSITORY_VISIBILITY -ne 'private') {
-            throw 'REFUSING TO RUN: this workflow needs a private repository.'
+          $isPrivate = (& gh api "repos/$env:GITHUB_REPOSITORY" --jq '.private' | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'true') {
+            throw 'REFUSING TO RUN: repository is not confirmed PRIVATE by the GitHub API.'
           }
           Write-Host 'Private repository verified. Never upload your ROM or game build to a public repo.'
 
