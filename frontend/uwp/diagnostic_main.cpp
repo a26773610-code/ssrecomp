@@ -1,4 +1,4 @@
-// Xbox One S UWP launch diagnostic v0.3. This is NOT Pokemon SoulSilver.
+// Xbox One S UWP launch diagnostic v0.4. This is NOT Pokemon SoulSilver.
 // Writes the startup stage and any failing HRESULT to LocalState/ssrecomp-diagnostic.log.
 #include <winrt/base.h>
 #include <winrt/Windows.ApplicationModel.Core.h>
@@ -24,7 +24,7 @@ namespace {
 void Log(char const* stage, HRESULT hr = S_OK) noexcept
 {
     char line[320]{};
-    std::snprintf(line, sizeof(line), "Diagnostic v0.3 | %s | HRESULT=0x%08lX\r\n",
+    std::snprintf(line, sizeof(line), "Diagnostic v0.4 | %s | HRESULT=0x%08lX\r\n",
                   stage, static_cast<unsigned long>(hr));
     OutputDebugStringA(line);
     try
