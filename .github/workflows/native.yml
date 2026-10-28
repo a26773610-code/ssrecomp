@@ -2,6 +2,7 @@
 name: Native portability
 on:
   push:
+    branches-ignore: [xbox-widescreen-uwp]
   pull_request:
   workflow_dispatch:
 permissions:

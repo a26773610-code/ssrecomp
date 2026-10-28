@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: libsdl-org/SDL
-          ref: release-2.32.10
+          ref: 5d249570393f7a37e037abf22cd6012a4cc56a71
           path: sdl-source
       - name: Select installed Visual Studio generator
         shell: pwsh
@@ -30,15 +30,26 @@ jobs:
           elseif ($helpText -match 'Visual Studio 17 2022') { $g = 'Visual Studio 17 2022' }
           else { throw 'Visual Studio generator missing' }
           "VS_GENERATOR=$g" >> $env:GITHUB_ENV
+      - uses: actions/cache/restore@v4
+        id: sdl-cache
+        with:
+          path: sdl-install
+          key: sdl-winrt-23210-${{ runner.os }}-${{ env.VS_GENERATOR }}-v1
       - name: Build and install SDL2 WinRT using MSVC
+        if: steps.sdl-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          cmake -S sdl-source -B build/sdl -G "$env:VS_GENERATOR" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DSDL_TEST=OFF -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_INSTALL=ON -DSDL_VULKAN=OFF -DSDL_LIBSAMPLERATE=OFF "-DCMAKE_INSTALL_PREFIX=$pwd/sdl-install"
+          cmake -S sdl-source -B build/sdl -G "$env:VS_GENERATOR" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore '-DCMAKE_SYSTEM_VERSION=10.0' -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DSDL_TEST=OFF -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_INSTALL=ON -DSDL_VULKAN=OFF -DSDL_LIBSAMPLERATE=OFF "-DCMAKE_INSTALL_PREFIX=$pwd/sdl-install"
           if ($LASTEXITCODE) { throw 'SDL configuration failed' }
           cmake --build build/sdl --config Release --parallel 4
           if ($LASTEXITCODE) { throw 'SDL compilation failed' }
           cmake --install build/sdl --config Release
           if ($LASTEXITCODE) { throw 'SDL install failed' }
+      - uses: actions/cache/save@v4
+        if: steps.sdl-cache.outputs.cache-hit != 'true'
+        with:
+          path: sdl-install
+          key: ${{ steps.sdl-cache.outputs.cache-primary-key }}
       - name: Prepare Xbox adapter and verify ROM-free watch tables
         shell: pwsh
         run: |
@@ -49,7 +60,7 @@ jobs:
       - name: Configure and link complete UWP x64 frontend
         shell: pwsh
         run: |
-          cmake -S tools/uwp/widescreen -B build/game -G "$env:VS_GENERATOR" -A x64 -T ClangCL -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 "-DSWITCH_SOURCE=$pwd/switch-source" "-DSDL_SOURCE=$pwd/sdl-source" "-DCMAKE_PREFIX_PATH=$pwd/sdl-install"
+          cmake -S tools/uwp/widescreen -B build/game -G "$env:VS_GENERATOR" -A x64 -T ClangCL -DCMAKE_SYSTEM_NAME=WindowsStore '-DCMAKE_SYSTEM_VERSION=10.0' "-DSWITCH_SOURCE=$pwd/switch-source" "-DSDL_SOURCE=$pwd/sdl-source" "-DCMAKE_PREFIX_PATH=$pwd/sdl-install"
           if ($LASTEXITCODE) { throw 'Game configuration failed' }
           cmake --build build/game --config Release --target pokemon-ds-wide --parallel 4
           if ($LASTEXITCODE) { throw 'Complete game compilation failed' }
