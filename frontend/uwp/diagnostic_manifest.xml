@@ -4,10 +4,10 @@
          IgnorableNamespaces="uap">
   <Identity Name="SSRecomp.XboxUwpDiagnostic"
             Publisher="CN=SSRecompDiagnostic"
-            Version="0.2.0.0"
+            Version="0.3.0.0"
             ProcessorArchitecture="x64"/>
   <Properties>
-    <DisplayName>SSRecomp Xbox Diagnostic v0.2</DisplayName>
+    <DisplayName>SSRecomp Xbox Diagnostic v0.3</DisplayName>
     <PublisherDisplayName>SSRecomp Diagnostic</PublisherDisplayName>
     <Logo>StoreLogo.png</Logo>
   </Properties>
@@ -18,7 +18,7 @@
   <Resources><Resource Language="en-us"/></Resources>
   <Applications>
     <Application Id="App" Executable="SoulSilverUwpDiagnostic.exe" EntryPoint="SSRecomp.Diagnostic">
-      <uap:VisualElements DisplayName="SSRecomp UWP Diagnostic v0.2"
+      <uap:VisualElements DisplayName="SSRecomp UWP Diagnostic v0.3"
                           Description="Xbox UWP toolchain and controller test (not the game)"
                           BackgroundColor="#12314C"
                           Square150x150Logo="Square150x150Logo.png"
