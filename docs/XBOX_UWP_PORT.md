@@ -46,3 +46,20 @@ Windows smoke checks now locate the installed MSVC toolchain with vswhere rather
 - The standalone diagnostic package workflow is intended to compile an x64 AppContainer EXE, pack an APPX, sign it using a temporary certificate and upload only the diagnostic APPX plus public certificate. C++ CRT must use `/MD` rather than unsupported UWP `/MT`; the manifest declares the Microsoft.VCLibs UWP framework dependency.
 - CI runs are triggered via draft PR [#1](https://github.com/a26773610-code/ssrecomp/pull/1). Their success and actual runtime behavior still need verification; a green compile will not itself mean the game can launch.
 - Next prerequisite for an actual SoulSilver executable: locally generate `gen/` from a privately held ROM and compile the SDL2/melonDS/game frontend with an Xbox-compatible UWP entrypoint and graphics/audio surface. Do not publish generated game code or ROM as CI artifacts.
+
+## Xbox One S launch issue (diagnostic v0.1)
+
+An Xbox One S Developer Mode test showed that the first signed UWP diagnostic APPX installed but immediately returned to the console dashboard without drawing the expected blue screen. A successful GitHub Actions compile/signing run **does not establish successful runtime launch**.
+
+The v0.2 diagnostic makes the following changes:
+- Moves Direct3D 11 device/swap-chain creation out of `IFrameworkView::Load` into `Run`, after `CoreWindow::Activate`.
+- Checks and records the HRESULT of each Direct3D/DXGI setup stage and Present; if graphics fail, leaves the event loop active rather than closing the app.
+- Catches gamepad-read WinRT exceptions independently, and records lifecycle callbacks including `wWinMain`, `Initialize`, `SetWindow`, `Load`, and `Run`.
+- Writes a text log to **LocalState/ssrecomp-diagnostic.log** via the package's ApplicationData.LocalFolder path. If the executable never reaches `wWinMain`, the log may not be created; that points toward package activation or a missing runtime dependency.
+- Bumps the package version to 0.2.0.0 and attempts to bundle the UWP x64 Microsoft.VCLibs package alongside the APPX when it exists on the GitHub runner. A new temporary test-signing certificate is made per workflow run; uninstall the previous diagnostic before installing a differently signed copy if updating fails.
+
+### Retrieving the log on Xbox (after v0.2 test)
+
+Open the Xbox Device Portal on a device on the same network as the Xbox, choose **File explorer**, navigate to **LocalAppData → SSRecomp.XboxUwpDiagnostic → LocalState**, and retrieve `ssrecomp-diagnostic.log`. It identifies the last successful stage and any failing `HRESULT` value. A log without `Run start` means launch or lifecycle was interrupted earlier. If the file does not exist, inspect portal crash reports and the Microsoft.VCLibs.140.00 prerequisite.
+
+This is a developer diagnostic, not a SoulSilver game executable. No code change is considered confirmed working on Xbox until retested on the console.
