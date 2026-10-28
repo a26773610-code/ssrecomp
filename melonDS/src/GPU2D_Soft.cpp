@@ -17,6 +17,7 @@
 */
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include "GPU2D_Soft.h"
 #include "GPU.h"
@@ -37,7 +38,7 @@ SoftRenderer::SoftRenderer(melonDS::GPU& gpu)
 }
 
 // ssrecomp: inlined into the per-pixel loops that call it.
-inline __attribute__((always_inline)) u32 SoftRenderer::ColorComposite(int i, u32 val1, u32 val2) const
+inline u32 SoftRenderer::ColorComposite(int i, u32 val1, u32 val2) const
 {
     u32 coloreffect = 0;
     u32 eva, evb;
@@ -1031,7 +1032,11 @@ template<bool mosaic, SoftRenderer::DrawPixel drawPixel>
 void SoftRenderer::DrawBG_Text(u32 line, u32 bgnum)
 {
     // workaround for backgrounds missing on aarch64 with lto build
+    #if defined(_MSC_VER) && !defined(__clang__)
+    std::atomic_signal_fence(std::memory_order_seq_cst);
+#else
     asm volatile ("" : : : "memory");
+#endif
 
     u16 bgcnt = CurUnit->BGCnt[bgnum];
 
