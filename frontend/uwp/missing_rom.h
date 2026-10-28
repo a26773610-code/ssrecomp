@@ -79,7 +79,8 @@ inline void DrawText(SDL_Renderer* renderer, std::string label, int x, int y, in
 inline bool WaitForPrivateRom(const std::string& romPath)
 {
     std::error_code ioError;
-    if (std::filesystem::exists(romPath, ioError)) return true;
+    // Always show a visible startup screen, even when a ROM is already present.
+    // This distinguishes a UWP activation failure from a game-core crash.
     fprintf(stderr, "[Xbox UWP] Missing user's ROM. Waiting in single-screen setup view: %s\n",
             romPath.c_str());
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) {
@@ -107,11 +108,16 @@ inline bool WaitForPrivateRom(const std::string& romPath)
     }
     SDL_RenderSetLogicalSize(renderer, 1280, 720);
     bool running = true;
+    bool romReady = false;
     Uint32 lastCheck = 0;
+    Uint32 visibleSince = SDL_GetTicks();
+    fprintf(stderr, "[Xbox UWP] Setup screen created; waiting for ROM and user confirmation\\n");
     while (running) {
         SDL_Event event{};
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) running = false;
+            if (event.type == SDL_CONTROLLERBUTTONDOWN && event.cbutton.button == SDL_CONTROLLER_BUTTON_A && romReady) running = false;
+            if (event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE) && romReady) running = false;
         }
         if (SDL_GetTicks() - lastCheck > 1000) {
             lastCheck = SDL_GetTicks();
@@ -129,12 +135,12 @@ inline bool WaitForPrivateRom(const std::string& romPath)
         SDL_SetRenderDrawColor(renderer, 236, 244, 255, 255);
         bootui::DrawText(renderer, "SOULSILVER", 120, 115, 8);
         SDL_SetRenderDrawColor(renderer, 245, 184, 94, 255);
-        bootui::DrawText(renderer, "ROM NOT FOUND", 120, 240, 6);
+        bootui::DrawText(renderer, romReady ? "ROM FOUND" : "ROM NOT FOUND", 120, 240, 6);
         SDL_SetRenderDrawColor(renderer, 208, 222, 245, 255);
         bootui::DrawText(renderer, "OPEN XBOX DEVICE PORTAL", 120, 345, 4);
         bootui::DrawText(renderer, "COPY ROM.NDS TO LOCALSTATE", 120, 400, 4);
         SDL_SetRenderDrawColor(renderer, 134, 171, 204, 255);
-        bootui::DrawText(renderer, "AUTOMATIC START AFTER COPY", 120, 485, 4);
+        bootui::DrawText(renderer, romReady ? "STARTING INTERPRETER" : "WAITING FOR ROM", 120, 485, 4);
         bootui::DrawText(renderer, "TEST VERSION - INTERPRETER", 120, 575, 3);
         SDL_RenderPresent(renderer);
         SDL_Delay(30);
@@ -142,7 +148,6 @@ inline bool WaitForPrivateRom(const std::string& romPath)
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    if (!running) return false;
     ioError.clear();
     return std::filesystem::exists(romPath, ioError);
 }
