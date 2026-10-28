@@ -32,7 +32,7 @@ jobs:
       - name: Configure melonDS core for UWP x64
         shell: pwsh
         run: |
-          $generators = @(cmake -G 2>&1)
+          $generators = @(cmake --help)
           if (($generators -join "`n") -match 'Visual Studio 18 2026') {
             $generator = 'Visual Studio 18 2026'
           } elseif (($generators -join "`n") -match 'Visual Studio 17 2022') {
