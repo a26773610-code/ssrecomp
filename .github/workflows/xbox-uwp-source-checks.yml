@@ -45,6 +45,22 @@ jobs:
           "%TEMP%\\ssrecomp_gamepad_test.exe"
           cl /nologo /std:c++17 /EHsc /W4 /WX frontend\\uwp\\gamepad_reader.cpp tests\\uwp\\gamepad_reader_test.cpp /Fe:%TEMP%\\ssrecomp_reader_test.exe
           "%TEMP%\\ssrecomp_reader_test.exe"
+      - name: Inspect installed UWP SDK and packaging tools
+        shell: pwsh
+        run: |
+          $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\\10'
+          $sdkIncludes = Join-Path $sdkRoot 'Include'
+          if (-not (Test-Path $sdkIncludes)) { throw "Windows SDK include directory missing" }
+          $versions = Get-ChildItem $sdkIncludes -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'um\\winapifamily.h') }
+          if (-not $versions) { throw "No SDK with UWP family headers available" }
+          Write-Host "Windows SDK versions with UWP family headers:"
+          $versions | ForEach-Object { Write-Host $_.Name }
+          $tools = @('makeappx.exe', 'signtool.exe')
+          foreach ($tool in $tools) {
+            $matches = Get-ChildItem (Join-Path $sdkRoot 'bin') -Recurse -Filter $tool -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\' }
+            if (-not $matches) { throw "$tool (x64) unavailable" }
+            Write-Host "$tool found at $($matches[0].FullName)"
+          }
       - name: Compile UWP-specific WinRT helpers with MSVC
         shell: cmd
         run: |
