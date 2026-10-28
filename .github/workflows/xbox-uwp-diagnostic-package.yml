@@ -28,8 +28,8 @@ jobs:
           $code = Get-Content frontend/uwp/diagnostic_main.cpp -Raw
           $manifest = Get-Content frontend/uwp/diagnostic_manifest.xml -Raw
           if ($code -match '(?m)^\s*(?:winrt::)?init_apartment\s*\(') { throw "Do not force COM apartment before CoreApplication::Run" }
-          if (-not $manifest.Contains('Version="0.3.0.0"')) { throw "Unexpected diagnostic package version" }
-          Write-Host "CoreApplication apartment preserved; diagnostic manifest v0.3"
+          if (-not $manifest.Contains('Version="0.4.0.0"')) { throw "Unexpected diagnostic package version" }
+          Write-Host "CoreApplication apartment preserved; diagnostic manifest v0.4"
       - name: Compile native UWP CoreApplication diagnostic
         shell: pwsh
         run: |
@@ -63,11 +63,11 @@ jobs:
           if (-not $toolset) { throw "MakeAppx unavailable" }
           $makeappx = Join-Path $toolset.FullName 'x64\makeappx.exe'
           $signtool = Join-Path $toolset.FullName 'x64\signtool.exe'
-          & $makeappx pack /d staging /p SSRecomp-Xbox-UWP-Diagnostic-v03.appx /o
+          & $makeappx pack /d staging /p SSRecomp-Xbox-UWP-Diagnostic-v04.appx /o
           if ($LASTEXITCODE -ne 0) { throw "APPX packaging failed" }
           $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=SSRecompDiagnostic' -KeyUsage DigitalSignature -FriendlyName 'Temporary SSRecomp UWP CI signing' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy NonExportable -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(14) -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
           Export-Certificate -Cert $cert -FilePath SSRecomp-Xbox-UWP-Diagnostic.cer | Out-Null
-          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic-v03.appx
+          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic-v04.appx
           if ($LASTEXITCODE -ne 0) { throw "APPX signing failed" }
       - name: Locate optional UWP VCLibs x64 prerequisite
         shell: pwsh
@@ -93,7 +93,7 @@ jobs:
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path SSRecomp-Xbox-UWP-Diagnostic-v03.appx))
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path SSRecomp-Xbox-UWP-Diagnostic-v04.appx))
           try {
             $manifest = $archive.Entries | Where-Object { $_.FullName -eq "AppxManifest.xml" } | Select-Object -First 1
             if (-not $manifest) { throw "Missing AppxManifest.xml" }
@@ -106,9 +106,9 @@ jobs:
           } finally { $archive.Dispose() }
       - uses: actions/upload-artifact@v4
         with:
-          name: xbox-uwp-diagnostic-v03-not-game
+          name: xbox-uwp-diagnostic-v04-not-game
           path: |
-            SSRecomp-Xbox-UWP-Diagnostic-v03.appx
+            SSRecomp-Xbox-UWP-Diagnostic-v04.appx
             SSRecomp-Xbox-UWP-Diagnostic.cer
             Microsoft.VCLibs.x64.14.00.appx
           if-no-files-found: error
