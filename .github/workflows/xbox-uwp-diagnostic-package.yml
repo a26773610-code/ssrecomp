@@ -1,0 +1,114 @@
+name: Xbox UWP standalone diagnostic package
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - 'frontend/uwp/diagnostic_main.cpp'
+      - 'frontend/uwp/gamepad_reader.cpp'
+      - 'frontend/uwp/diagnostic_manifest.xml'
+      - '.github/workflows/xbox-uwp-diagnostic-package.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/uwp/diagnostic_main.cpp'
+      - 'frontend/uwp/gamepad_reader.cpp'
+      - 'frontend/uwp/diagnostic_manifest.xml'
+      - '.github/workflows/xbox-uwp-diagnostic-package.yml'
+  workflow_dispatch:
+
+jobs:
+  diagnostic-appx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard against Xbox COM startup regression
+        shell: pwsh
+        run: |
+          $code = Get-Content frontend/uwp/diagnostic_main.cpp -Raw
+          $manifest = Get-Content frontend/uwp/diagnostic_manifest.xml -Raw
+          if ($code -match '(?m)^\s*(?:winrt::)?init_apartment\s*\(') { throw "Do not force COM apartment before CoreApplication::Run" }
+          if (-not $manifest.Contains('Version="0.4.0.0"')) { throw "Unexpected diagnostic package version" }
+          Write-Host "CoreApplication apartment preserved; diagnostic manifest v0.4"
+      - name: Compile native UWP CoreApplication diagnostic
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "MSVC installation unavailable" }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
+          New-Item -ItemType Directory -Force staging | Out-Null
+          $cmd = 'call "' + $vcvars + '" amd64 uwp && cl /nologo /std:c++20 /EHsc /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib d3d11.lib dxgi.lib'
+          cmd /c $cmd
+          if ($LASTEXITCODE -ne 0) { throw "UWP diagnostic compiler failed: $LASTEXITCODE" }
+      - name: Create UWP manifest and diagnostic tiles
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          foreach ($entry in @(@('Square44x44Logo.png',44),@('Square150x150Logo.png',150),@('StoreLogo.png',50))) {
+            $size = [int]$entry[1]
+            $bitmap = [System.Drawing.Bitmap]::new($size,$size)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            $graphics.Clear([System.Drawing.Color]::FromArgb(18,49,76))
+            $graphics.Dispose()
+            $bitmap.Save((Join-Path (Resolve-Path staging) $entry[0]),[System.Drawing.Imaging.ImageFormat]::Png)
+            $bitmap.Dispose()
+          }
+          Copy-Item frontend\uwp\diagnostic_manifest.xml staging\AppxManifest.xml
+      - name: Pack and sign test-only APPX
+        shell: pwsh
+        run: |
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $toolset = Get-ChildItem $sdk -Directory | Sort-Object Name -Descending | Where-Object { Test-Path (Join-Path $_.FullName 'x64\makeappx.exe') } | Select-Object -First 1
+          if (-not $toolset) { throw "MakeAppx unavailable" }
+          $makeappx = Join-Path $toolset.FullName 'x64\makeappx.exe'
+          $signtool = Join-Path $toolset.FullName 'x64\signtool.exe'
+          & $makeappx pack /d staging /p SSRecomp-Xbox-UWP-Diagnostic-v04.appx /o
+          if ($LASTEXITCODE -ne 0) { throw "APPX packaging failed" }
+          $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=SSRecompDiagnostic' -KeyUsage DigitalSignature -FriendlyName 'Temporary SSRecomp UWP CI signing' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy NonExportable -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(14) -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+          Export-Certificate -Cert $cert -FilePath SSRecomp-Xbox-UWP-Diagnostic.cer | Out-Null
+          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic-v04.appx
+          if ($LASTEXITCODE -ne 0) { throw "APPX signing failed" }
+      - name: Locate optional UWP VCLibs x64 prerequisite
+        shell: pwsh
+        run: |
+          $roots = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Microsoft SDKs\Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs')
+          )
+          $found = $null
+          foreach ($root in $roots) {
+            if (Test-Path $root) {
+              $found = Get-ChildItem $root -Filter 'Microsoft.VCLibs.x64.14.00.appx' -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) { break }
+            }
+          }
+          if ($found) {
+            Copy-Item $found.FullName 'Microsoft.VCLibs.x64.14.00.appx'
+            Write-Host "Bundled optional Microsoft.VCLibs UWP x64 prerequisite."
+          } else {
+            Write-Warning 'UWP VCLibs x64 prerequisite not found in hosted Windows SDK. The Xbox may already provide it or require a separate install.'
+          }
+      - name: Inspect generated APPX identity and architecture
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path SSRecomp-Xbox-UWP-Diagnostic-v04.appx))
+          try {
+            $manifest = $archive.Entries | Where-Object { $_.FullName -eq "AppxManifest.xml" } | Select-Object -First 1
+            if (-not $manifest) { throw "Missing AppxManifest.xml" }
+            $stream = $manifest.Open()
+            $reader = [System.IO.StreamReader]::new($stream)
+            try { $xml = [xml]$reader.ReadToEnd() } finally { $reader.Dispose(); $stream.Dispose() }
+            $identity = $xml.Package.Identity
+            if ($identity.ProcessorArchitecture -ne "x64") { throw "Incorrect package architecture" }
+            Write-Host "Package $($identity.Name) architecture $($identity.ProcessorArchitecture)"
+          } finally { $archive.Dispose() }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-uwp-diagnostic-v04-not-game
+          path: |
+            SSRecomp-Xbox-UWP-Diagnostic-v04.appx
+            SSRecomp-Xbox-UWP-Diagnostic.cer
+            Microsoft.VCLibs.x64.14.00.appx
+          if-no-files-found: error

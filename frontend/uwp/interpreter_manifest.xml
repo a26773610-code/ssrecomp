@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ROM-free intermediate Xbox beta: runs melonDS interpreter with ssrecomp
+     merged/single-screen frontend; NOT a static SoulSilver recompilation. -->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         IgnorableNamespaces="uap">
+  <Identity Name="SSRecomp.XboxInterpreterBeta"
+            Publisher="CN=SSRecompInterpreter"
+            Version="0.3.0.0"
+            ProcessorArchitecture="x64"/>
+  <Properties>
+    <DisplayName>SSRecomp Xbox Single Screen Beta</DisplayName>
+    <PublisherDisplayName>SSRecomp open-source development</PublisherDisplayName>
+    <Logo>StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/>
+    <PackageDependency Name="Microsoft.VCLibs.140.00" MinVersion="14.0.24217.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"/>
+  </Dependencies>
+  <Resources><Resource Language="en-us"/></Resources>
+  <Applications>
+    <Application Id="App" Executable="ssrecomp.exe" EntryPoint="ssrecomp.App">
+      <uap:VisualElements DisplayName="SSRecomp Single Screen Beta"
+                          Description="Experimental ROM-free Xbox UWP interpreter fallback. Requires user ROM in LocalState."
+                          BackgroundColor="#0D1A30"
+                          Square150x150Logo="Square150x150Logo.png"
+                          Square44x44Logo="Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Wide310x150Logo.png"/>
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+</Package>

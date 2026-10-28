@@ -1,0 +1,127 @@
+name: Xbox UWP port - source checks
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+  pull_request:
+    branches: [xbox-uwp-port, main]
+  workflow_dispatch:
+
+jobs:
+  source-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify UWP storage integration
+        run: python3 tools/uwp/check_storage_integration.py
+      - name: Verify ROM checker without accessing private game data
+        run: python3 tools/uwp/verify_soulsilver_code.py --help
+      - name: Validate standalone UWP package manifest XML
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('frontend/uwp/diagnostic_manifest.xml').getroot()
+          ns = '{http://schemas.microsoft.com/appx/manifest/foundation/windows10}'
+          assert root.find(ns + 'Identity').attrib['ProcessorArchitecture'] == 'x64'
+          assert root.find(ns + 'Applications') is not None
+          print('UWP manifest: valid XML, x64, application declared')
+          PY
+      - name: Test UWP code-image generation without a game ROM
+        shell: bash
+        run: |
+          python3 -m py_compile tools/recomp.py tools/ndsrom.py
+          python3 - <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+          import tempfile
+          sys.path.insert(0, 'tools')
+          import recomp
+          with tempfile.TemporaryDirectory() as scratch:
+              image = recomp.Section('public-synthetic-test', 0x02000000, bytes([0x01, 0x23, 0x45, 0x67]))
+              generated = recomp.write_images(scratch, [image], uwp=True)
+              assert generated == ['rc_image_000.cpp'], generated
+              source = pathlib.Path(scratch) / generated[0]
+              assert 'rc_image_0' in source.read_text()
+              assert '0x01, 0x23, 0x45, 0x67' in source.read_text()
+              subprocess.run(['g++', '-std=c++17', '-c', str(source), '-o',
+                              str(pathlib.Path(scratch) / 'rc_image_000.o')], check=True)
+          print('Synthetic image generated and compiled; no ROM or copyrighted data used')
+          PY
+      - name: Build and test portable Xbox-to-DS input mapping
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad.cpp tests/uwp/gamepad_test.cpp -o /tmp/gamepad_test
+          /tmp/gamepad_test
+      - name: Test Xbox widescreen scalar GPU operations (ROM-free)
+        run: |
+          g++ -std=c++20 -Wall -Wextra -Werror -I. tests/uwp/scalar_wide_test.cpp -o /tmp/ssr_scalar_wide_test
+          /tmp/ssr_scalar_wide_test
+          g++ -std=c++20 -DSSR_FORCE_SCALAR_WIDE=1 -fsyntax-only -ImelonDS/src melonDS/src/GPU3D_Wide.cpp
+      - name: Test non-UWP controller reader fallback
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad_reader.cpp tests/uwp/gamepad_reader_test.cpp -o /tmp/gamepad_reader_test
+          /tmp/gamepad_reader_test
+
+  windows-storage-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find Visual Studio C++ build tools
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $installation) { throw "MSVC C++ tools not installed" }
+          $vcvars = Join-Path $installation "VC\\Auxiliary\\Build\\vcvars64.bat"
+          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found" }
+          "VCVARS=$vcvars" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Compile portable helpers with MSVC
+        shell: cmd
+        run: |
+          call "%VCVARS%"
+          cl /nologo /std:c++17 /EHsc /W4 /WX /c frontend\\uwp\\storage.cpp /Fo:%TEMP%\\ssrecomp_uwp_storage.obj
+          cl /nologo /std:c++17 /EHsc /W4 /WX frontend\\uwp\\gamepad.cpp tests\\uwp\\gamepad_test.cpp /Fe:%TEMP%\\ssrecomp_gamepad_test.exe
+          "%TEMP%\\ssrecomp_gamepad_test.exe"
+          cl /nologo /std:c++17 /EHsc /W4 /WX frontend\\uwp\\gamepad_reader.cpp tests\\uwp\\gamepad_reader_test.cpp /Fe:%TEMP%\\ssrecomp_reader_test.exe
+          "%TEMP%\\ssrecomp_reader_test.exe"
+          cl /nologo /std:c++20 /EHsc /W4 /WX /I. tests\\uwp\\scalar_wide_test.cpp /Fe:%TEMP%\\ssrecomp_wide_scalar_test.exe
+          "%TEMP%\\ssrecomp_wide_scalar_test.exe"
+      - name: Inspect installed UWP SDK and packaging tools
+        shell: pwsh
+        run: |
+          $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\\10'
+          $sdkIncludes = Join-Path $sdkRoot 'Include'
+          if (-not (Test-Path $sdkIncludes)) { throw "Windows SDK include directory missing" }
+          $versions = Get-ChildItem $sdkIncludes -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'shared\\winapifamily.h') }
+          if (-not $versions) { throw "No SDK containing shared/winapifamily.h available" }
+          Write-Host "Windows SDK versions with UWP family headers:"
+          $versions | ForEach-Object { Write-Host $_.Name }
+          $tools = @('makeappx.exe', 'signtool.exe')
+          foreach ($tool in $tools) {
+            $matches = Get-ChildItem (Join-Path $sdkRoot 'bin') -Recurse -Filter $tool -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\' }
+            if (-not $matches) { throw "$tool (x64) unavailable" }
+            Write-Host "$tool found at $($matches[0].FullName)"
+          }
+      - name: Validate private game APPX manifest and packaging scripts
+        shell: pwsh
+        run: |
+          [xml]$game = Get-Content frontend/uwp/game_manifest.xml -Raw
+          [xml]$diag = Get-Content frontend/uwp/diagnostic_manifest.xml -Raw
+          if ($game.Package.Identity.Name -eq $diag.Package.Identity.Name) { throw "Game identity must differ from diagnostic" }
+          if ($game.Package.Identity.ProcessorArchitecture -ne 'x64') { throw "Game must target x64" }
+          if ($game.Package.Applications.Application.Executable -ne 'ssrecomp.exe') { throw "Game manifest executable mismatch" }
+          foreach ($path in @('tools/uwp/build_game.ps1','tools/uwp/package_game.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) { throw "PowerShell parse errors in $($path): $($errors -join '; ')" }
+          }
+          Write-Host 'Private game APPX manifest and PowerShell scripts are syntactically valid'
+      - name: Compile UWP-specific WinRT helpers with MSVC
+        shell: cmd
+        run: |
+          call "%VCVARS%"
+          cl /nologo /std:c++20 /EHsc /W4 /WX /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\storage.cpp /Fo:%TEMP%\\ssrecomp_uwp_storage_app.obj
+          cl /nologo /std:c++20 /EHsc /W4 /WX /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\gamepad_reader.cpp /Fo:%TEMP%\\ssrecomp_uwp_reader_app.obj
+
+# Authorized diagnostic build: source-only; no ROM, generated game code, or private signing material.

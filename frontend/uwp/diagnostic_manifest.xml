@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         IgnorableNamespaces="uap">
+  <Identity Name="SSRecomp.XboxUwpDiagnostic"
+            Publisher="CN=SSRecompDiagnostic"
+            Version="0.4.0.0"
+            ProcessorArchitecture="x64"/>
+  <Properties>
+    <DisplayName>SSRecomp Xbox Diagnostic v0.4</DisplayName>
+    <PublisherDisplayName>SSRecomp Diagnostic</PublisherDisplayName>
+    <Logo>StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/>
+    <PackageDependency Name="Microsoft.VCLibs.140.00" MinVersion="14.0.24217.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"/>
+  </Dependencies>
+  <Resources><Resource Language="en-us"/></Resources>
+  <Applications>
+    <Application Id="App" Executable="SoulSilverUwpDiagnostic.exe" EntryPoint="SSRecomp.Diagnostic">
+      <uap:VisualElements DisplayName="SSRecomp UWP Diagnostic v0.4"
+                          Description="Xbox UWP toolchain and controller test (not the game)"
+                          BackgroundColor="#12314C"
+                          Square150x150Logo="Square150x150Logo.png"
+                          Square44x44Logo="Square44x44Logo.png"/>
+    </Application>
+  </Applications>
+</Package>

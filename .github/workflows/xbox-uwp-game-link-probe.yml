@@ -1,0 +1,122 @@
+name: Xbox UWP full SoulSilver frontend and linker probe (ROM-free)
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - 'CMakeLists.txt'
+      - 'frontend/**'
+      - 'runtime/**'
+      - 'melonDS/**'
+      - 'tools/uwp/make_game_link_probe.py'
+      - 'tools/apps.py'
+      - 'layouts/soulsilver-us.json'
+      - '.github/workflows/xbox-uwp-game-link-probe.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'CMakeLists.txt'
+      - 'frontend/**'
+      - 'runtime/**'
+      - 'melonDS/**'
+      - 'tools/uwp/make_game_link_probe.py'
+      - '.github/workflows/xbox-uwp-game-link-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  native-full-frontend-x64:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify build uses no private SoulSilver ROM
+        shell: pwsh
+        run: |
+          if (Test-Path gen) { throw "Private gen/ must never be published" }
+          if (Get-ChildItem . -Include *.nds,*.NDS -File -Recurse -ErrorAction SilentlyContinue) {
+            throw "Game ROM found in public checkout; refusing build"
+          }
+          python -m py_compile tools/uwp/make_game_link_probe.py tools/apps.py
+      - name: Download verified public SDL2 WinRT source
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch release-2.32.10 https://github.com/libsdl-org/SDL.git .private-uwp-deps/SDL2
+          if ($LASTEXITCODE -ne 0) { throw "Could not download public SDL2 source" }
+      - name: Generate minimal public C++ objects for full frontend link test
+        shell: pwsh
+        run: |
+          python tools/uwp/make_game_link_probe.py build/public-link-probe-gen
+          if ($LASTEXITCODE -ne 0) { throw "Synthetic code generation failed" }
+          python tools/apps.py --layout layouts/soulsilver-us.json build/public-link-probe-gen
+          if ($LASTEXITCODE -ne 0) { throw "Public app metadata generation failed" }
+      - name: Configure complete Xbox UWP application and static dependencies
+        shell: pwsh
+        run: |
+          $helpText = (cmake --help) -join "`n"
+          if ($helpText -match 'Visual Studio 18 2026') { $generator = 'Visual Studio 18 2026' }
+          elseif ($helpText -match 'Visual Studio 17 2022') { $generator = 'Visual Studio 17 2022' }
+          else { throw "Visual Studio CMake generator unavailable" }
+          $args = @(
+            '-S','.', '-B','build/full-game-probe',
+            '-G', $generator, '-A', 'x64',
+            '-DCMAKE_SYSTEM_NAME=WindowsStore',
+            '-DCMAKE_SYSTEM_VERSION=10.0',
+            '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=10.0.26100.0',
+            '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0',
+            '-DSSR_UWP=ON',
+            "-DSSR_SDL2_WINRT_SOURCE_DIR=$((Resolve-Path '.private-uwp-deps/SDL2').Path)",
+            "-DSSR_GENERATED_DIR=$((Resolve-Path 'build/public-link-probe-gen').Path)",
+            '-DENABLE_JIT=OFF',
+            '-DENABLE_OGLRENDERER=OFF'
+          )
+          & cmake @args
+          if ($LASTEXITCODE -ne 0) { throw "Native UWP full frontend CMake configure failed" }
+      - name: Compile and link entire Xbox UWP application (synthetic game table)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $logPath = 'build/full-game-probe/uwp-full-frontend-build.log'
+          # Capture the complete MSBuild output; normal GitHub logs can truncate errors.
+          & cmake --build build/full-game-probe --config Release --target ssrecomp --parallel 4 -- /verbosity:diagnostic /clp:Summary 2>&1 |
+            Out-String -Stream | Tee-Object -FilePath $logPath
+          $buildExitCode = $LASTEXITCODE
+          if ($buildExitCode -ne 0) {
+            Write-Host '=== Build failure diagnostics (first 80 relevant lines) ==='
+            $matches = @(Select-String -Path $logPath -Pattern 'error C[0-9]+','error LNK[0-9]+','error MSB[0-9]+','fatal error','unresolved external','cannot open','Build FAILED','failed with exit code' | Select-Object -First 80)
+            if ($matches.Count -gt 0) { $matches | ForEach-Object { Write-Host $_.Line } }
+            else { Get-Content $logPath -Tail 150 | ForEach-Object { Write-Host $_ } }
+            throw "Entire native Xbox UWP frontend build failed (exit $buildExitCode); see uploaded build log"
+          }
+          Write-Host "Full native UWP game executable linked with synthetic data."
+          Write-Host "THIS IS NOT A PLAYABLE GAME AND MUST NEVER BE DISTRIBUTED AS ONE."
+      - name: Smoke-test the private game APPX packager with synthetic code (never upload)
+        shell: pwsh
+        run: |
+          $ps51 = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          & $ps51 -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'tools/uwp/package_game.ps1' -GameExe 'build/full-game-probe/Release/ssrecomp.exe' -OutputDir 'build/full-game-probe/synthetic-package'
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic game APPX packaging failed; no private game build should run until fixed' }
+          $p = 'build/full-game-probe/synthetic-package/SSRecomp-Xbox-SoulSilver-Private.appx'
+          if (-not (Test-Path $p)) { throw 'APPX packaging did not create a file' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $p).Path)
+          try {
+            $manifest = $zip.Entries | Where-Object { $_.FullName -eq 'AppxManifest.xml' } | Select-Object -First 1
+            if (-not $manifest) { throw 'Packaged game manifest missing' }
+            $reader = [IO.StreamReader]::new($manifest.Open())
+            try { [xml]$xml = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            if ($xml.Package.Identity.Name -ne 'SSRecomp.XboxSoulSilver') { throw 'Packaged private game identity invalid' }
+            if ($xml.Package.Identity.ProcessorArchitecture -ne 'x64') { throw 'Packaged game is not x64' }
+            if ($xml.Package.Applications.Application.Executable -ne 'ssrecomp.exe') { throw 'Packaged game executable mismatch' }
+          } finally { $zip.Dispose() }
+          Write-Host 'Synthetic app package signed and inspected successfully.'
+          Write-Host 'This APPX contains dummy game data; intentionally NOT uploaded or released.'
+      - name: Save ROM-free linkage diagnostics only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbox-full-game-link-probe-build-metadata-no-rom-no-game
+          path: |
+            build/full-game-probe/CMakeCache.txt
+            build/full-game-probe/uwp-full-frontend-build.log
+            build/public-link-probe-gen/sources.cmake
+          if-no-files-found: warn

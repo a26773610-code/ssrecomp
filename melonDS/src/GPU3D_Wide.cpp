@@ -13,6 +13,9 @@
 #include <type_traits>
 #include <mutex>
 #include <thread>
+#if (defined(_MSC_VER) && !defined(__clang__)) || defined(SSR_FORCE_SCALAR_WIDE)
+#include "ScalarWideVector.h"
+#endif
 
 #include "NDS.h"
 #include "GPU.h"
@@ -98,6 +101,10 @@ private:
 
 // The widescreen rasteriser works on groups of pixels with the compiler's vector types
 // (SSE/AVX on x86, NEON on ARM): 8 at a time where AVX2 is on, otherwise 4.
+#if (defined(_MSC_VER) && !defined(__clang__)) || defined(SSR_FORCE_SCALAR_WIDE)
+constexpr int Lanes = 4;
+#define SSR_WIDE_CONVERT(vec, type) WideNumericConvert<type>(vec)
+#else
 #if defined(__AVX2__)
 constexpr int Lanes = 8;
 #else
@@ -105,6 +112,8 @@ constexpr int Lanes = 4;
 #endif
 typedef float VF __attribute__((vector_size(Lanes * 4)));
 typedef s32 VI __attribute__((vector_size(Lanes * 4)));
+#define SSR_WIDE_CONVERT(vec, type) __builtin_convertvector(vec, type)
+#endif
 static inline VF Select(VI mask, VF a, VF b) { return (VF)(((VI)a & mask) | ((VI)b & ~mask)); }
 static inline VI Select(VI mask, VI a, VI b) { return (a & mask) | (b & ~mask); }
 static inline bool Any(VI mask)
@@ -120,7 +129,7 @@ static inline VI LaneIndex()
     return v;
 }
 static inline VI Clamp63(VI v) { return Select(v < 0, VI{}, Select(v > 63, VI{} + 63, v)); }
-static inline VF LaneIndexF() { return __builtin_convertvector(LaneIndex(), VF); }
+static inline VF LaneIndexF() { return SSR_WIDE_CONVERT(LaneIndex(), VF); }
 // A texture coordinate (whole texels) wrapped, mirrored or clamped to the texture's size.
 static inline VI WrapCoord(VI t, int size, bool repeat, bool mirror)
 {
@@ -812,7 +821,7 @@ struct WideAccess
                             VI ok = (qs > 0) & (LaneIndex() < n);
                             const VF iq = 1.0f / qs;
                             // In W-buffer mode the stored depth is W; the vertices carry it scaled.
-                            const VI z = wbuffer ? __builtin_convertvector(wScale * iq, VI) : __builtin_convertvector(w0 * aZ + w1 * bZ + w2 * cZ, VI);
+                            const VI z = wbuffer ? SSR_WIDE_CONVERT(wScale * iq, VI) : SSR_WIDE_CONVERT(w0 * aZ + w1 * bZ + w2 * cZ, VI);
                             VI dz;
                             memcpy(&dz, depth + xb, sizeof(dz));
                             if (depthEqual)
@@ -837,8 +846,8 @@ struct WideAccess
                             if (textured)
                             {
                                 // (+32768 keeps the value positive so the conversion rounds down)
-                                vts = (__builtin_convertvector(q0 * aS + q1 * bS + q2 * cS + 32768.0f, VI) - 32768) >> 4;
-                                vtv = (__builtin_convertvector(q0 * aT + q1 * bT + q2 * cT + 32768.0f, VI) - 32768) >> 4;
+                                vts = (SSR_WIDE_CONVERT(q0 * aS + q1 * bS + q2 * cS + 32768.0f, VI) - 32768) >> 4;
+                                vtv = (SSR_WIDE_CONVERT(q0 * aT + q1 * bT + q2 * cT + 32768.0f, VI) - 32768) >> 4;
                                 vts = WrapCoord(vts, texW, texParam & (1 << 16), texParam & (1 << 18));
                                 vtv = WrapCoord(vtv, texH, texParam & (1 << 17), texParam & (1 << 19));
                             }
@@ -860,9 +869,9 @@ struct WideAccess
                                 VI vr = VI{} + flatR, vg = VI{} + flatG, vb = VI{} + flatB;
                                 if (!flat)
                                 {
-                                    vr = Clamp63(__builtin_convertvector(q0 * aR + q1 * bR + q2 * cR + 0.5f, VI));
-                                    vg = Clamp63(__builtin_convertvector(q0 * aG + q1 * bG + q2 * cG + 0.5f, VI));
-                                    vb = Clamp63(__builtin_convertvector(q0 * aB + q1 * bB + q2 * cB + 0.5f, VI));
+                                    vr = Clamp63(SSR_WIDE_CONVERT(q0 * aR + q1 * bR + q2 * cR + 0.5f, VI));
+                                    vg = Clamp63(SSR_WIDE_CONVERT(q0 * aG + q1 * bG + q2 * cG + 0.5f, VI));
+                                    vb = Clamp63(SSR_WIDE_CONVERT(q0 * aB + q1 * bB + q2 * cB + 0.5f, VI));
                                 }
                                 VI vR = vr, vG = vg, vB = vb;
                                 if (textured)

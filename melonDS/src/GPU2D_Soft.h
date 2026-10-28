@@ -144,7 +144,7 @@ private:
     void DrawScanline_BGOBJ(u32 line);
 
     // ssrecomp: defined here so that it is inlined into the drawing loops.
-    static inline __attribute__((always_inline)) void DrawPixel_Normal(u32* dst, u16 color, u32 flag)
+    static inline void DrawPixel_Normal(u32* dst, u16 color, u32 flag)
     {
         u8 r = (color & 0x001F) << 1;
         u8 g = (color & 0x03E0) >> 4;

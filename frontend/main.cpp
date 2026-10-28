@@ -20,7 +20,7 @@
 #include <tuple>
 #include <deque>
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(SSR_UWP)
 #include <SDL.h>
 #else
 #include <SDL2/SDL.h>
@@ -45,6 +45,16 @@
 #include "RTC.h"
 #include "Savestate.h"
 #include "host.h"
+#include "uwp/gamepad_reader.h"
+#if defined(_WIN32)
+#include <winapifamily.h>
+#endif
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+#include "uwp/storage.h"
+#if defined(SSR_INTERP_FALLBACK)
+#include "uwp/missing_rom.h"
+#endif
+#endif
 #include "layout.h"
 #include "ui.h"
 #include "merged.h"
@@ -894,6 +904,32 @@ static PadState ReadPad(Pads& pads)
             merge(st.ly, SDL_JoystickGetAxis(j, 1) / 32767.0f);
         }
     }
+#if defined(_WIN32)
+    // On Xbox UWP, SDL may not expose the physical controller. Merge the
+    // native Windows.Gaming.Input state into the existing frontend pipeline.
+    ssrecomp::uwp::GamepadState xbox;
+    if (ssrecomp::uwp::ReadXboxGamepad(xbox))
+    {
+        st.btn[PAD_A] |= xbox.a;
+        st.btn[PAD_B] |= xbox.b;
+        st.btn[PAD_X] |= xbox.x;
+        st.btn[PAD_Y] |= xbox.y;
+        st.btn[PAD_START] |= xbox.menu;
+        st.btn[PAD_BACK] |= xbox.view;
+        st.btn[PAD_UP] |= xbox.dpad_up;
+        st.btn[PAD_DOWN] |= xbox.dpad_down;
+        st.btn[PAD_LEFT] |= xbox.dpad_left;
+        st.btn[PAD_RIGHT] |= xbox.dpad_right;
+        st.btn[PAD_LB] |= xbox.left_shoulder;
+        st.btn[PAD_RB] |= xbox.right_shoulder;
+        merge(st.lx, xbox.left_x);
+        merge(st.ly, -xbox.left_y); // SDL uses positive Y downwards.
+        merge(st.rx, xbox.right_x);
+        merge(st.ry, -xbox.right_y);
+        merge(st.lt, xbox.left_trigger);
+        merge(st.rt, xbox.right_trigger);
+    }
+#endif
     return st;
 }
 
@@ -1033,6 +1069,58 @@ static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame)
 
 int main(int argc, char** argv)
 {
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+    // SDL WinRT's entry point launches apps without command-line arguments.
+    // Never embed the user's ROM in a public UWP build. Users place their own
+    // compatible ROM at LocalState/rom.nds via Xbox Device Portal, with saves
+    // and configuration retained in that same per-package directory.
+    std::vector<std::string> xboxArguments;
+    std::vector<char*> xboxArgv;
+    if (argc < 2)
+    {
+        const auto local = ssrecomp::uwp::LocalDataDirectoryUtf8();
+        if (local.empty())
+        {
+            fprintf(stderr, "[Xbox UWP] Cannot resolve the per-app LocalState directory\n");
+            return 2;
+        }
+        // Xbox Developer Mode doesn't expose stderr on the TV. Preserve a log
+        // in LocalState, the same directory accessed through Xbox Device Portal.
+        const auto gameLog = local + "\\ssrecomp-game.log";
+        if (freopen(gameLog.c_str(), "w", stderr))
+        {
+            setvbuf(stderr, nullptr, _IOLBF, 0);
+            fprintf(stderr, "[Xbox UWP] SoulSilver single-screen game startup\n");
+        }
+#if defined(SSR_INTERP_FALLBACK)
+        // The public ROM-free beta runs the real melonDS interpreter with
+        // ssrecomp's merged frontend while the private ARM9 UWP build is tested.
+        // Without this flag its synthetic link-test chunk must never be executed.
+        if (!ssrecomp::uwp::WaitForPrivateRom(local + "\\rom.nds"))
+        {
+            fprintf(stderr, "[Xbox UWP] ROM setup view closed without a usable ROM\\n");
+            return 1;
+        }
+#endif
+        xboxArguments = {
+            "ssrecomp",
+            local + "\\rom.nds",
+            "--save", local + "\\soulsilver.sav",
+            "--config", local + "\\ssrecomp.cfg",
+            "--layout", "merged",
+            "--fullscreen",
+        };
+#if defined(SSR_INTERP_FALLBACK)
+        xboxArguments.push_back("--interp");
+        fprintf(stderr, "[Xbox UWP] Interpreter fallback mode; ARM9 static recompilation disabled\n");
+#endif
+        for (auto& argument : xboxArguments)
+            xboxArgv.push_back(argument.data());
+        argc = static_cast<int>(xboxArgv.size());
+        argv = xboxArgv.data();
+        fprintf(stderr, "[Xbox UWP] Loading user's SoulSilver ROM from LocalState\\rom.nds\n");
+    }
+#endif
     Options opt;
 #ifdef __ANDROID__
     // Started from the app icon: the ROM is packed in the APK, the save and the settings
@@ -1066,17 +1154,27 @@ int main(int argc, char** argv)
     }
     if (opt.save.empty()) opt.save = opt.rom + ".sav";
 
+    fprintf(stderr, "[Xbox boot] Stage 1: reading ROM file\n");
     std::vector<uint8_t> rom = ReadFile(opt.rom);
     if (rom.empty())
     {
         fprintf(stderr, "cannot read ROM: %s\n", opt.rom.c_str());
+#if defined(SSR_UWP) && defined(SSR_INTERP_FALLBACK)
+        ssrecomp::uwp::ShowBootFailure("CANNOT READ ROM.NDS");
+#endif
         return 1;
     }
 
     std::vector<uint8_t> sav = ReadFile(opt.save);
     fprintf(stderr, "ROM %s: %zu bytes; save %s: %zu bytes\n", opt.rom.c_str(), rom.size(), opt.save.c_str(), sav.size());
+    fprintf(stderr, "[Xbox boot] Stage 2: initializing Nintendo DS core\n");
     auto nds = MakeConsole(rom, sav, opt.headless);
-    if (!nds) return 1;
+    if (!nds) {
+#if defined(SSR_UWP) && defined(SSR_INTERP_FALLBACK)
+        ssrecomp::uwp::ShowBootFailure("NDS CORE REJECTED ROM");
+#endif
+        return 1;
+    }
     nds->ARM9.RecompEnable = opt.recomp;
 
     // Lockstep: a second console on the plain interpreter runs each frame first and
@@ -1219,6 +1317,11 @@ int main(int argc, char** argv)
             fprintf(stderr, "cannot create window: %s\n", SDL_GetError());
             return 1;
         }
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+        // The Xbox shell may interpret B as Back and terminate a UWP view;
+        // keep it in-app as the Nintendo DS Cancel button instead.
+        ssrecomp::uwp::InstallXboxBackHandler();
+#endif
         {
             // In every log: bug reports about the picture need to know this.
             SDL_RendererInfo info;

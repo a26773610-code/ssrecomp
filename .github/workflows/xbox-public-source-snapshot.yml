@@ -1,0 +1,30 @@
+name: Export ROM-free Xbox development source snapshot
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - '.github/workflows/xbox-public-source-snapshot.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/xbox-public-source-snapshot.yml'
+  workflow_dispatch:
+
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive only public open-source project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f gen/sources.cmake || { echo 'Unexpected generated game data in checkout'; exit 1; }
+          git archive --format=tar HEAD | gzip -9 > ssrecomp-xbox-public-source.tar.gz
+          tar -tzf ssrecomp-xbox-public-source.tar.gz | head -20 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssrecomp-xbox-public-source-no-rom
+          path: ssrecomp-xbox-public-source.tar.gz
+          if-no-files-found: error

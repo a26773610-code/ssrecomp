@@ -1,4 +1,8 @@
-set (CMAKE_CXX_STANDARD 17)
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" AND MSVC)
+    set(CMAKE_CXX_STANDARD 20)
+else()
+    set(CMAKE_CXX_STANDARD 17)
+endif()
 
 include(FixInterfaceIncludes)
 
@@ -151,6 +155,11 @@ if (ENABLE_JIT)
 endif()
 
 target_include_directories(core INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" AND MSVC)
+    set_target_properties(core PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+    target_compile_options(core PRIVATE /std:c++20 /Zc:char8_t- /wd4146 /bigobj)
+    target_compile_definitions(core PRIVATE _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING)
+endif()
 
 set(MELONDS_VERSION_SUFFIX "$ENV{MELONDS_VERSION_SUFFIX}" CACHE STRING "Suffix to add to displayed melonDS version")
 option(MELONDS_EMBED_BUILD_INFO "Embed detailed build info into the binary" OFF)
@@ -209,8 +218,15 @@ if (WIN32)
     target_link_libraries(core PRIVATE ole32 comctl32 wsock32 ws2_32)
 
     if (NOT MINGW)
-        find_path(DIRENT_INCLUDE_DIRS "dirent.h")
-        target_include_directories(core PUBLIC ${DIRENT_INCLUDE_DIRS})
+        # UWP has no Win32 dirent.h in the platform SDK. The original
+        # desktop frontend may use a third-party shim; do not require it for
+        # the headless melonDS core target.
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+            find_path(DIRENT_INCLUDE_DIRS "dirent.h")
+            if(DIRENT_INCLUDE_DIRS)
+                target_include_directories(core PUBLIC ${DIRENT_INCLUDE_DIRS})
+            endif()
+        endif()
     endif()
 elseif(NOT APPLE AND NOT HAIKU)
     check_library_exists(rt shm_open "" NEED_LIBRT)
@@ -240,7 +256,12 @@ endif()
 # ssrecomp: the widescreen rasteriser is a hot per-pixel loop. AVX2 only on x86 machines
 # that have it (the game is compiled on the machine it runs on; not when building for
 # another device, e.g. Android); ARM gets NEON by default.
-set(SSR_WIDE_FLAGS -O3 -ffast-math)
+if(MSVC)
+    # Equivalent flags for the Xbox UWP compiler (GCC flags are ignored by cl).
+    set(SSR_WIDE_FLAGS /O2 /fp:fast)
+else()
+    set(SSR_WIDE_FLAGS -O3 -ffast-math)
+endif()
 option(SSR_PORTABLE_X86 "Avoid host-specific AVX2/FMA instructions" OFF)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$" AND NOT CMAKE_CROSSCOMPILING
    AND NOT SSR_PORTABLE_X86)

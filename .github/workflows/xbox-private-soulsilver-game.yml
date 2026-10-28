@@ -1,0 +1,117 @@
+name: Xbox SoulSilver PRIVATE game APPX (requires private repo and owned ROM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rom_release_tag:
+        description: "Private GitHub Release tag with your own .nds ROM attached"
+        type: string
+        required: true
+        default: rom-input
+      parallel_jobs:
+        description: "MSVC C++ compile jobs (Windows runner has limited RAM)"
+        type: choice
+        required: true
+        default: "2"
+        options:
+          - "1"
+          - "2"
+
+# Never trigger this workflow on push or pull_request. It uses private ROM bytes.
+permissions:
+  contents: read
+
+concurrency:
+  group: private-soulsilver-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  private-game-appx:
+    # Public repos must NEVER compile or publish ROM-derived binaries/artifacts.
+    if: ${{ github.event.repository.private == true }}
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout your PRIVATE SoulSilver port source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Require the actual port branch and native Windows toolchain
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_name }}' -ne 'xbox-uwp-port') {
+            throw 'Use the xbox-uwp-port branch. Select it under Run workflow.'
+          }
+          if (-not (Test-Path 'tools/uwp/build_game.ps1')) { throw 'SoulSilver UWP build script missing' }
+          if (-not (Test-Path 'tools/uwp/package_game.ps1')) { throw 'Private APPX packager missing' }
+          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw 'CMake not installed' }
+          if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 not installed' }
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI not installed' }
+          $generators = (cmake --help) -join "`n"
+          if ($generators -notmatch 'Visual Studio (18 2026|17 2022)') {
+            throw 'Visual Studio C++ UWP compiler not available'
+          }
+
+      - name: Download YOUR OWN ROM from a release of THIS PRIVATE repo
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ROM_RELEASE: ${{ inputs.rom_release_tag }}
+        run: |
+          $folder = Join-Path $env:RUNNER_TEMP 'private-soulsilver-rom'
+          New-Item -ItemType Directory -Force $folder | Out-Null
+          # GitHub automatically authenticates the built-in token to this PRIVATE repo.
+          # Assets and files are NOT downloaded from any public link.
+          & gh release download $env:ROM_RELEASE --repo $env:GH_REPO --pattern '*.nds' --dir $folder --clobber
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Release download failed. Create a PRIVATE release with your legally owned .nds ROM as an asset.'
+          }
+          $roms = @(Get-ChildItem -LiteralPath $folder -File -Filter '*.nds')
+          if ($roms.Count -ne 1) { throw "Expected exactly one private .nds asset; found $($roms.Count)" }
+          if ($roms[0].Length -lt 8MB) { throw 'ROM file looks truncated (less than 8 MB)' }
+          "SSR_PRIVATE_ROM=$($roms[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host 'One private SoulSilver ROM retrieved securely. Content will not appear in the log.'
+
+      - name: Verify ROM code against public SoulSilver US layout (no bytes printed)
+        shell: pwsh
+        run: |
+          python tools/uwp/verify_soulsilver_code.py "$env:SSR_PRIVATE_ROM"
+          if ($LASTEXITCODE -ne 0) { throw 'Wrong SoulSilver revision, corrupt ROM or incompatible code layout' }
+
+      - name: Compile real SoulSilver static ARM9 code and privately sign Xbox UWP APPX
+        shell: pwsh
+        run: |
+          # Windows PowerShell 5.1 includes the certificate and Windows SDK tooling
+          # used by package_game.ps1. It is installed on GitHub's Windows runners.
+          $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'tools/uwp/build_game.ps1' -Rom "$env:SSR_PRIVATE_ROM" -Jobs ${{ inputs.parallel_jobs }}
+          if ($LASTEXITCODE -ne 0) { throw 'Real private SoulSilver game compile or APPX package failed. Inspect errors above.' }
+          $output = 'build/xbox-uwp-game/private-package'
+          if (-not (Test-Path "$output/SSRecomp-Xbox-SoulSilver-Private.appx")) { throw 'Compiled game APPX missing' }
+          if (-not (Test-Path "$output/SSRecomp-Xbox-SoulSilver-Private.cer")) { throw 'Signing certificate missing' }
+          Write-Host 'Real ROM-specific SoulSilver Xbox APPX built and signed. Hardware boot not yet verified.'
+
+      - name: Upload only signed private APPX, certificate and optional VCLibs dependency
+        uses: actions/upload-artifact@v4
+        with:
+          name: PRIVATE-SoulSilver-Xbox-One-S-APPX-not-hardware-tested
+          path: |
+            build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.appx
+            build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.cer
+            build/xbox-uwp-game/private-package/Microsoft.VCLibs.x64.14.00.appx
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Clear private ROM and ROM-derived sources from runner workspace
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($path in @((Join-Path $env:RUNNER_TEMP 'private-soulsilver-rom'), 'gen', 'gen.new')) {
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Continue
+            }
+          }
+          Write-Host 'Runner cleanup finished (GitHub-hosted Windows VM is also ephemeral).'

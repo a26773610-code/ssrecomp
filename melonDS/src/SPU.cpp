@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <cmath>
+#include <vector>
 #include "Platform.h"
 #include "NDS.h"
 #include "Mic.h"
@@ -1022,9 +1023,9 @@ void SPU::EndFrame()
     BlipTimer = 0;
 
     int avail = blip_samples_avail(BlipLeft);
-    s16 temp[avail * 2];
-    blip_read_samples(BlipLeft, temp, avail, true);
-    blip_read_samples(BlipRight, temp + 1, avail, true);
+    std::vector<s16> temp(static_cast<std::size_t>(avail) * 2);
+    blip_read_samples(BlipLeft, temp.data(), avail, true);
+    blip_read_samples(BlipRight, temp.data() + 1, avail, true);
 
     Platform::Mutex_Lock(AudioLock);
     for (int i = 0; i < avail * 2; i += 2)

@@ -25,6 +25,9 @@
 
 #include <initializer_list>
 #include <algorithm>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <bit>
+#endif
 
 namespace melonDS
 {
@@ -118,7 +121,11 @@ struct NonStupidBitField
             done:;
             }
 
+            #if defined(_MSC_VER) && !defined(__clang__)
+            BitIdx = static_cast<u32>(std::countr_zero(RemainingBits));
+#else
             BitIdx = __builtin_ctzll(RemainingBits);
+#endif
             RemainingBits &= ~(1ULL << BitIdx);
 
             if ((Size & 0x3F) && BitIdx >= Size)
@@ -175,7 +182,11 @@ struct NonStupidBitField
         {
             if (Data[i])
             {
+                #if defined(_MSC_VER) && !defined(__clang__)
+                u32 idx = static_cast<u32>(std::countr_zero(Data[i]));
+#else
                 u32 idx = __builtin_ctzll(Data[i]);
+#endif
                 if (idx + i * 64 < Size)
                     return {*this, i, idx, Data[i] & ~(1ULL << idx)};
             }

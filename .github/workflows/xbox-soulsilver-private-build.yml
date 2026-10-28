@@ -1,0 +1,92 @@
+# Source-only workflow. Import this branch into a PRIVATE repository before running.
+# No ROM, ROM-derived C++ or ROM-derived APPX is allowed in the public repo.
+name: Build private SoulSilver Xbox UWP APPX (cellphone workflow)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  private-soulsilver-game:
+    # A public copy of this workflow cannot download or compile game data.
+    if: ${{ github.event.repository.private == true }}
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - name: Enforce private repository boundary before checkout
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $isPrivate = (& gh api "repos/$env:GITHUB_REPOSITORY" --jq '.private' | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'true') {
+            throw 'REFUSING TO RUN: repository is not confirmed PRIVATE by the GitHub API.'
+          }
+          Write-Host 'Private repository verified. Never upload your ROM or game build to a public repo.'
+
+      - uses: actions/checkout@v4
+
+      - name: Download personal ROM from a release asset inside THIS private repository
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $privateDir = Join-Path $env:RUNNER_TEMP 'ssrecomp-private'
+          New-Item -ItemType Directory -Force $privateDir | Out-Null
+          & gh release download soulrom-input --repo $env:GITHUB_REPOSITORY --pattern '*.nds' --dir $privateDir
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot retrieve the ROM asset. In this PRIVATE repository, create a release tagged soulrom-input and attach ONE .nds file.'
+          }
+          $roms = @(Get-ChildItem $privateDir -File -Filter '*.nds')
+          if ($roms.Count -ne 1) { throw 'Expected exactly one .nds asset in the private release.' }
+          $romFile = Join-Path $privateDir 'rom.nds'
+          if ($roms[0].FullName -ne $romFile) {
+            Move-Item -LiteralPath $roms[0].FullName -Destination $romFile
+          }
+          "SSRECOMP_PRIVATE_ROM=$romFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host 'One private ROM asset downloaded; contents have not been printed.'
+
+      - name: Validate SoulSilver US code layout privately
+        shell: pwsh
+        run: |
+          python tools/uwp/verify_soulsilver_code.py "$env:SSRECOMP_PRIVATE_ROM"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'This ROM does not match the supported SoulSilver US code layout. Nothing will be packaged.'
+          }
+
+      - name: Compile ROM-specific native game and sign a PRIVATE Xbox APPX
+        shell: pwsh
+        run: |
+          & ./tools/uwp/build_game.ps1 -Rom "$env:SSRECOMP_PRIVATE_ROM" -Jobs 2
+          if ($LASTEXITCODE -ne 0 -or -not $?) {
+            throw 'Private UWP game compilation or packaging failed. Inspect this private workflow log.'
+          }
+          $appx = 'build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.appx'
+          $cer = 'build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.cer'
+          if (-not (Test-Path $appx -PathType Leaf)) { throw 'No signed game APPX produced.' }
+          if (-not (Test-Path $cer -PathType Leaf)) { throw 'No private game certificate produced.' }
+          Write-Host 'Private ROM-matched Xbox UWP package and certificate generated.'
+
+      - name: Upload game APPX to private GitHub Actions artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PRIVATE-SoulSilver-Xbox-APPX-not-public
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
+          path: |
+            build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.appx
+            build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.cer
+            build/xbox-uwp-game/private-package/Microsoft.VCLibs.x64.14.00.appx
+
+      - name: Remove private ROM copy and generated recompilation outputs
+        if: always()
+        shell: pwsh
+        run: |
+          $privateDir = Join-Path $env:RUNNER_TEMP 'ssrecomp-private'
+          foreach ($p in @($privateDir, 'gen', 'gen.new')) {
+            if (Test-Path $p) { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue }
+          }
+          Write-Host 'Removed private working files; the hosted runner will also be discarded.'
