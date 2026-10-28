@@ -55,17 +55,37 @@ jobs:
           if (-not $toolset) { throw "MakeAppx unavailable" }
           $makeappx = Join-Path $toolset.FullName 'x64\makeappx.exe'
           $signtool = Join-Path $toolset.FullName 'x64\signtool.exe'
-          & $makeappx pack /d staging /p SSRecomp-Xbox-UWP-Diagnostic.appx /o
+          & $makeappx pack /d staging /p SSRecomp-Xbox-UWP-Diagnostic-v02.appx /o
           if ($LASTEXITCODE -ne 0) { throw "APPX packaging failed" }
           $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=SSRecompDiagnostic' -KeyUsage DigitalSignature -FriendlyName 'Temporary SSRecomp UWP CI signing' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy NonExportable -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(14) -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
           Export-Certificate -Cert $cert -FilePath SSRecomp-Xbox-UWP-Diagnostic.cer | Out-Null
-          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic.appx
+          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic-v02.appx
           if ($LASTEXITCODE -ne 0) { throw "APPX signing failed" }
+      - name: Locate optional UWP VCLibs x64 prerequisite
+        shell: pwsh
+        run: |
+          $roots = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Microsoft SDKs\Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs')
+          )
+          $found = $null
+          foreach ($root in $roots) {
+            if (Test-Path $root) {
+              $found = Get-ChildItem $root -Filter 'Microsoft.VCLibs.x64.14.00.appx' -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) { break }
+            }
+          }
+          if ($found) {
+            Copy-Item $found.FullName 'Microsoft.VCLibs.x64.14.00.appx'
+            Write-Host "Bundled optional Microsoft.VCLibs UWP x64 prerequisite."
+          } else {
+            Write-Warning 'UWP VCLibs x64 prerequisite not found in hosted Windows SDK. The Xbox may already provide it or require a separate install.'
+          }
       - name: Inspect generated APPX identity and architecture
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path SSRecomp-Xbox-UWP-Diagnostic.appx))
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path SSRecomp-Xbox-UWP-Diagnostic-v02.appx))
           try {
             $manifest = $archive.Entries | Where-Object { $_.FullName -eq "AppxManifest.xml" } | Select-Object -First 1
             if (-not $manifest) { throw "Missing AppxManifest.xml" }
@@ -78,8 +98,9 @@ jobs:
           } finally { $archive.Dispose() }
       - uses: actions/upload-artifact@v4
         with:
-          name: xbox-uwp-diagnostic-not-game
+          name: xbox-uwp-diagnostic-v02-not-game
           path: |
-            SSRecomp-Xbox-UWP-Diagnostic.appx
+            SSRecomp-Xbox-UWP-Diagnostic-v02.appx
             SSRecomp-Xbox-UWP-Diagnostic.cer
+            Microsoft.VCLibs.x64.14.00.appx
           if-no-files-found: error
