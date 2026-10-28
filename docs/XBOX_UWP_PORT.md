@@ -126,3 +126,13 @@ app manifest. Do not describe a core-only or diagnostic APPX as the full game.
 **ROM privacy and architecture:** Generated ARM9 code embeds code bytes from the user's private game ROM and is specific to that code layout. Only the open-source emulator/frontend and synthetic unit tests are committed. Do not upload private ROM, generated C++ or ROM-bearing EXE to public GitHub Actions. The user must compile their ROM-specific game executable privately, then place a compatible ROM file in the Xbox app's LocalState for cartridge assets. Simply dropping any ROM into the current diagnostic APPX cannot create a recompiled executable on the Xbox.
 
 **Build gates still outstanding:** (1) melonDS UWP core.lib MSVC x64 compile; (2) SDL2 WinRT UWP static library and non-XAML entry point, separately probed via xbox-uwp-sdl2-probe.yml; (3) full private ROM-specific C++ game compilation/link; (4) separate game APPX packaging and dependencies; (5) Xbox One S tests for merged fullscreen, input, touch cursor, audio, saves and performance.
+
+### Verified UWP native core milestone
+
+GitHub Actions run 40619012771 **SUCCEEDED** on Visual Studio 2026 and Windows SDK 10.0.26100.0. MSBuild's log explicitly reports the UWP x64 static archive at build/uwp-core/src/Release/core.lib. This proves that melonDS hardware/graphics/audio sources, including the Xbox scalar widescreen fallback, compile under the WindowsStore toolchain. It does NOT prove the SDL frontend links or the Xbox console can boot the game.
+
+The initial successful artifact only contained CMakeCache.txt because the workflow specified the wrong location for core.lib. The output path has been corrected in the workflow, and the next successful run should publish core.lib itself.
+
+Local ROM-only recompilation metrics and MSVC alternatives were also tested: 1,685,113 ARM9 instructions generated across 25,120 chunks, 122 sections (121 ROM plus BIOS), 71 RC instruction C++ files and 122 private image C++ files, about 368 MB, plus 59 game application descriptors. These generated files were intentionally NOT uploaded to the GitHub repository.
+
+A separate public SDL2 WinRT x64 build probe is now running in workflow xbox-uwp-sdl2-probe.yml to test the next native dependency without exposing private game data. The official SDL2 WinRT documentation requires its NonXAML main entry point and bundled cursor resources, both now referenced in the game CMake configuration.
