@@ -136,3 +136,38 @@ The initial successful artifact only contained CMakeCache.txt because the workfl
 Local ROM-only recompilation metrics and MSVC alternatives were also tested: 1,685,113 ARM9 instructions generated across 25,120 chunks, 122 sections (121 ROM plus BIOS), 71 RC instruction C++ files and 122 private image C++ files, about 368 MB, plus 59 game application descriptors. These generated files were intentionally NOT uploaded to the GitHub repository.
 
 A separate public SDL2 WinRT x64 build probe is now running in workflow xbox-uwp-sdl2-probe.yml to test the next native dependency without exposing private game data. The official SDL2 WinRT documentation requires its NonXAML main entry point and bundled cursor resources, both now referenced in the game CMake configuration.
+
+## Full native Xbox executable integration (development gate)
+
+The combined game/frontend build is now tested independently of the user's ROM by
+`.github/workflows/xbox-uwp-game-link-probe.yml`. It generates nonfunctional, synthetic C++
+dispatch and image tables; produces public layout metadata with `tools/apps.py`; and links
+the actual game frontend, melonDS, SDL2 WinRT and all recompilation runtime sources.
+**Even if the link succeeds, its probe executable is not a playable game**.
+
+The real local ROM-derived game build on a Windows 2022/2026 + UWP toolchain is:
+
+```powershell
+.\tools\uwp\build_game.ps1 -Rom "C:\MyGames\SoulSilver.nds"
+```
+
+The script now compiles SDL2 2.32.10 WinRT from source, as validated by GitHub Actions,
+so vcpkg is no longer required. It generates the private 1.7-million-instruction C++
+output, links the native frontend, and, on a successful link, invokes
+`tools/uwp/package_game.ps1` automatically. Use `-SkipPackage` to stop after linking.
+The **private**, distinctly signed package is expected under
+`build/xbox-uwp-game/private-package/SSRecomp-Xbox-SoulSilver-Private.appx` with a
+corresponding `.cer`; the optional VCLibs UWP dependency is included if available.
+No game package is published by the public GitHub workflow.
+
+After installing the private package through Xbox Device Portal on a Developer Mode
+Xbox One S, place a copy of the SAME compatible SoulSilver ROM in its
+`LocalState\rom.nds` directory. Saves and configuration are stored there too. This is
+static recompilation, not a general-purpose ROM loader: the executable must have first
+been compiled from ROM-specific code bytes. The single-screen `merged` frontend and
+widescreen GPU are preserved.
+
+Current verification: melonDS UWP x64 static core compiled, SDL2 WinRT x64 static
+library compiled, synthetic code-image generation tested, and diagnostic app launched
+on Xbox. Full ROM-specific MSVC link, game APPX packaging, ROM load and performance
+are **not verified** until they pass their respective tests.
