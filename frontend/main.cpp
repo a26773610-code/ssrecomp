@@ -46,6 +46,12 @@
 #include "Savestate.h"
 #include "host.h"
 #include "uwp/gamepad_reader.h"
+#if defined(_WIN32)
+#include <winapifamily.h>
+#endif
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+#include "uwp/storage.h"
+#endif
 #include "layout.h"
 #include "ui.h"
 #include "merged.h"
@@ -1060,6 +1066,35 @@ static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame)
 
 int main(int argc, char** argv)
 {
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+    // SDL WinRT's entry point launches apps without command-line arguments.
+    // Never embed the user's ROM in a public UWP build. Users place their own
+    // compatible ROM at LocalState/rom.nds via Xbox Device Portal, with saves
+    // and configuration retained in that same per-package directory.
+    std::vector<std::string> xboxArguments;
+    std::vector<char*> xboxArgv;
+    if (argc < 2)
+    {
+        const auto local = ssrecomp::uwp::LocalDataDirectoryUtf8();
+        if (local.empty())
+        {
+            fprintf(stderr, "[Xbox UWP] Cannot resolve the per-app LocalState directory\n");
+            return 2;
+        }
+        xboxArguments = {
+            "ssrecomp",
+            local + "\\rom.nds",
+            "--save", local + "\\soulsilver.sav",
+            "--config", local + "\\ssrecomp.cfg",
+            "--fullscreen",
+        };
+        for (auto& argument : xboxArguments)
+            xboxArgv.push_back(argument.data());
+        argc = static_cast<int>(xboxArgv.size());
+        argv = xboxArgv.data();
+        fprintf(stderr, "[Xbox UWP] Loading user's SoulSilver ROM from LocalState\\rom.nds\n");
+    }
+#endif
     Options opt;
 #ifdef __ANDROID__
     // Started from the app icon: the ROM is packed in the APK, the save and the settings
