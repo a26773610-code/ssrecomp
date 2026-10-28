@@ -28,7 +28,7 @@ jobs:
           if (-not $vs) { throw "MSVC installation unavailable" }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
           New-Item -ItemType Directory -Force staging | Out-Null
-          $cmd = 'call "' + $vcvars + '" amd64 uwp && cl /nologo /std:c++17 /EHsc /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib d3d11.lib dxgi.lib'
+          $cmd = 'call "' + $vcvars + '" amd64 uwp && cl /nologo /std:c++20 /EHsc /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib d3d11.lib dxgi.lib'
           cmd /c $cmd
           if ($LASTEXITCODE -ne 0) { throw "UWP diagnostic compiler failed: $LASTEXITCODE" }
       - name: Create UWP manifest and diagnostic tiles
