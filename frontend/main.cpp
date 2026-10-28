@@ -1151,6 +1151,7 @@ int main(int argc, char** argv)
     }
     if (opt.save.empty()) opt.save = opt.rom + ".sav";
 
+    fprintf(stderr, "[Xbox boot] Stage 1: reading ROM file\n");
     std::vector<uint8_t> rom = ReadFile(opt.rom);
     if (rom.empty())
     {
@@ -1160,6 +1161,7 @@ int main(int argc, char** argv)
 
     std::vector<uint8_t> sav = ReadFile(opt.save);
     fprintf(stderr, "ROM %s: %zu bytes; save %s: %zu bytes\n", opt.rom.c_str(), rom.size(), opt.save.c_str(), sav.size());
+    fprintf(stderr, "[Xbox boot] Stage 2: initializing Nintendo DS core\n");
     auto nds = MakeConsole(rom, sav, opt.headless);
     if (!nds) return 1;
     nds->ARM9.RecompEnable = opt.recomp;
