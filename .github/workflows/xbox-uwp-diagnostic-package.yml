@@ -1,0 +1,70 @@
+name: Xbox UWP standalone diagnostic package
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - 'frontend/uwp/diagnostic_main.cpp'
+      - '.github/workflows/xbox-uwp-diagnostic-package.yml'
+  workflow_dispatch:
+
+jobs:
+  diagnostic-appx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile native UWP CoreApplication diagnostic
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "MSVC installation unavailable" }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          New-Item -ItemType Directory -Force staging | Out-Null
+          $cmd = 'call "' + $vcvars + '" && cl /nologo /std:c++17 /EHsc /await /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib'
+          cmd /c $cmd
+          if ($LASTEXITCODE -ne 0) { throw "UWP diagnostic compiler failed: $LASTEXITCODE" }
+      - name: Create UWP manifest and diagnostic tiles
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          foreach ($entry in @(@('Square44x44Logo.png',44),@('Square150x150Logo.png',150),@('StoreLogo.png',50))) {
+            $size = [int]$entry[1]
+            $bitmap = [System.Drawing.Bitmap]::new($size,$size)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            $graphics.Clear([System.Drawing.Color]::FromArgb(18,49,76))
+            $graphics.Dispose()
+            $bitmap.Save((Join-Path (Resolve-Path staging) $entry[0]),[System.Drawing.Imaging.ImageFormat]::Png)
+            $bitmap.Dispose()
+          }
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap">
+            <Identity Name="SSRecomp.XboxUwpDiagnostic" Publisher="CN=SSRecompDiagnostic" Version="0.1.0.0" ProcessorArchitecture="x64"/>
+            <Properties><DisplayName>SSRecomp Xbox Diagnostic</DisplayName><PublisherDisplayName>SSRecomp Diagnostic</PublisherDisplayName><Logo>StoreLogo.png</Logo></Properties>
+            <Dependencies><TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/></Dependencies>
+            <Resources><Resource Language="en-us"/></Resources>
+            <Applications><Application Id="App" Executable="SoulSilverUwpDiagnostic.exe" EntryPoint="Windows.FullTrustApplication"><uap:VisualElements DisplayName="SSRecomp UWP Diagnostic" Description="Toolchain test, not the game" BackgroundColor="#12314C" Square150x150Logo="Square150x150Logo.png" Square44x44Logo="Square44x44Logo.png"/></Application></Applications>
+          </Package>
+          '@ | Set-Content -Encoding utf8 staging\AppxManifest.xml
+      - name: Pack and sign test-only APPX
+        shell: pwsh
+        run: |
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $toolset = Get-ChildItem $sdk -Directory | Sort-Object Name -Descending | Where-Object { Test-Path (Join-Path $_.FullName 'x64\makeappx.exe') } | Select-Object -First 1
+          if (-not $toolset) { throw "MakeAppx unavailable" }
+          $makeappx = Join-Path $toolset.FullName 'x64\makeappx.exe'
+          $signtool = Join-Path $toolset.FullName 'x64\signtool.exe'
+          & $makeappx pack /d staging /p SSRecomp-Xbox-UWP-Diagnostic.appx /o
+          if ($LASTEXITCODE -ne 0) { throw "APPX packaging failed" }
+          $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=SSRecompDiagnostic' -KeyUsage DigitalSignature -FriendlyName 'Temporary SSRecomp UWP CI signing' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy NonExportable -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(14) -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+          Export-Certificate -Cert $cert -FilePath SSRecomp-Xbox-UWP-Diagnostic.cer | Out-Null
+          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic.appx
+          if ($LASTEXITCODE -ne 0) { throw "APPX signing failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-uwp-diagnostic-not-game
+          path: |
+            SSRecomp-Xbox-UWP-Diagnostic.appx
+            SSRecomp-Xbox-UWP-Diagnostic.cer
+          if-no-files-found: error
