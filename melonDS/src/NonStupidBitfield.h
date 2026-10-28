@@ -118,7 +118,11 @@ struct NonStupidBitField
             done:;
             }
 
+            #if defined(_MSC_VER) && !defined(__clang__)
+            BitIdx = static_cast<u32>(std::countr_zero(RemainingBits));
+#else
             BitIdx = __builtin_ctzll(RemainingBits);
+#endif
             RemainingBits &= ~(1ULL << BitIdx);
 
             if ((Size & 0x3F) && BitIdx >= Size)
