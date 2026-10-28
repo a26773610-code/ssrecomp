@@ -89,6 +89,27 @@ jobs:
           }
           Write-Host "Full native UWP game executable linked with synthetic data."
           Write-Host "THIS IS NOT A PLAYABLE GAME AND MUST NEVER BE DISTRIBUTED AS ONE."
+      - name: Smoke-test the private game APPX packager with synthetic code (never upload)
+        shell: pwsh
+        run: |
+          $ps51 = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          & $ps51 -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'tools/uwp/package_game.ps1' -GameExe 'build/full-game-probe/Release/ssrecomp.exe' -OutputDir 'build/full-game-probe/synthetic-package'
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic game APPX packaging failed; no private game build should run until fixed' }
+          $p = 'build/full-game-probe/synthetic-package/SSRecomp-Xbox-SoulSilver-Private.appx'
+          if (-not (Test-Path $p)) { throw 'APPX packaging did not create a file' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $p).Path)
+          try {
+            $manifest = $zip.Entries | Where-Object { $_.FullName -eq 'AppxManifest.xml' } | Select-Object -First 1
+            if (-not $manifest) { throw 'Packaged game manifest missing' }
+            $reader = [IO.StreamReader]::new($manifest.Open())
+            try { [xml]$xml = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            if ($xml.Package.Identity.Name -ne 'SSRecomp.XboxSoulSilver') { throw 'Packaged private game identity invalid' }
+            if ($xml.Package.Identity.ProcessorArchitecture -ne 'x64') { throw 'Packaged game is not x64' }
+            if ($xml.Package.Applications.Application.Executable -ne 'ssrecomp.exe') { throw 'Packaged game executable mismatch' }
+          } finally { $zip.Dispose() }
+          Write-Host 'Synthetic app package signed and inspected successfully.'
+          Write-Host 'This APPX contains dummy game data; intentionally NOT uploaded or released.'
       - name: Save ROM-free linkage diagnostics only
         if: always()
         uses: actions/upload-artifact@v4
