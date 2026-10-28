@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Rom,
     [string]$VcpkgRoot = "",
     [string]$SDL2SourceRoot = "",
-    [int]$Jobs = 4
+    [int]$Jobs = 4,
+    [switch]$SkipPackage
 )
 $ErrorActionPreference = 'Stop'
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -70,5 +71,11 @@ Write-Host "Compile and link complete game frontend and generated ARM9 (private)
 cmake --build build/xbox-uwp-game --config Release --target ssrecomp --parallel $Jobs
 if ($LASTEXITCODE -ne 0) { throw "Full SoulSilver UWP native game build failed" }
 
-Write-Host "Native UWP x64 SoulSilver game linked. Packaging and Xbox hardware testing remain necessary."
+Write-Host "Native UWP x64 SoulSilver game linked."
+if (-not $SkipPackage) {
+    Write-Host "Creating private UWP APPX with its own game identity and local signing certificate."
+    & (Join-Path $PSScriptRoot 'package_game.ps1') -GameExe 'build\xbox-uwp-game\Release\ssrecomp.exe'
+    if (-not $?) { throw "Private game package script failed" }
+}
 Write-Host "KEEP gen/ and build/xbox-uwp-game PRIVATE. They contain code from your ROM."
+Write-Host "The APPX still requires Xbox One S hardware testing."
