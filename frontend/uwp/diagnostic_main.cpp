@@ -191,8 +191,11 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
 {
     try
     {
-        init_apartment(apartment_type::single_threaded);
-        Log("wWinMain entered");
+        // CoreApplication manages the UWP application thread's COM apartment.
+        // Explicit single-threaded RoInitialize on an already-initialized MTA
+        // produced RPC_E_CHANGED_MODE (0x80010106) on the Xbox One S.
+        // Follow Microsoft's C++/WinRT Core App example: call Run directly.
+        Log("wWinMain entered (COM apartment managed by CoreApplication)");
         CoreApplication::Run(make<DiagnosticViewSource>());
         Log("CoreApplication::Run returned");
         return 0;
