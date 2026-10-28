@@ -1097,7 +1097,10 @@ int main(int argc, char** argv)
         // ssrecomp's merged frontend while the private ARM9 UWP build is tested.
         // Without this flag its synthetic link-test chunk must never be executed.
         if (!ssrecomp::uwp::WaitForPrivateRom(local + "\\rom.nds"))
+        {
+            fprintf(stderr, "[Xbox UWP] ROM setup view closed without a usable ROM\\n");
             return 1;
+        }
 #endif
         xboxArguments = {
             "ssrecomp",
@@ -1156,6 +1159,9 @@ int main(int argc, char** argv)
     if (rom.empty())
     {
         fprintf(stderr, "cannot read ROM: %s\n", opt.rom.c_str());
+#if defined(SSR_UWP) && defined(SSR_INTERP_FALLBACK)
+        ssrecomp::uwp::ShowBootFailure("CANNOT READ ROM.NDS");
+#endif
         return 1;
     }
 
@@ -1163,7 +1169,12 @@ int main(int argc, char** argv)
     fprintf(stderr, "ROM %s: %zu bytes; save %s: %zu bytes\n", opt.rom.c_str(), rom.size(), opt.save.c_str(), sav.size());
     fprintf(stderr, "[Xbox boot] Stage 2: initializing Nintendo DS core\n");
     auto nds = MakeConsole(rom, sav, opt.headless);
-    if (!nds) return 1;
+    if (!nds) {
+#if defined(SSR_UWP) && defined(SSR_INTERP_FALLBACK)
+        ssrecomp::uwp::ShowBootFailure("NDS CORE REJECTED ROM");
+#endif
+        return 1;
+    }
     nds->ARM9.RecompEnable = opt.recomp;
 
     // Lockstep: a second console on the plain interpreter runs each frame first and
