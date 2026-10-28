@@ -55,5 +55,5 @@ jobs:
           name: xbox-uwp-melonds-core-probe-no-game
           path: |
             build/uwp-core/CMakeCache.txt
-            build/uwp-core/melonDS/src/Release/core.lib
+            build/uwp-core/src/Release/core.lib
           if-no-files-found: warn
