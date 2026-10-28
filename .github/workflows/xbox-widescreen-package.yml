@@ -1,0 +1,73 @@
+name: Pokemon DS Widescreen Xbox UWP package
+on:
+  push:
+    branches: [xbox-widescreen-uwp]
+    paths: ['tools/uwp/widescreen/**', '.github/workflows/xbox-widescreen-package.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: mamesj/pokemon-ds-widescreen-switch
+          ref: 5cdf42631a211abcef010f8b41ed542288f18a5f
+          path: switch-source
+      - uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: sdl-source
+      - name: Select installed Visual Studio generator
+        shell: pwsh
+        run: |
+          $helpText = (cmake --help) -join "`n"
+          if ($helpText -match 'Visual Studio 18 2026') { $g = 'Visual Studio 18 2026' }
+          elseif ($helpText -match 'Visual Studio 17 2022') { $g = 'Visual Studio 17 2022' }
+          else { throw 'Visual Studio generator missing' }
+          "VS_GENERATOR=$g" >> $env:GITHUB_ENV
+      - name: Build and install SDL2 WinRT using MSVC
+        shell: pwsh
+        run: |
+          cmake -S sdl-source -B build/sdl -G "$env:VS_GENERATOR" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DSDL_TEST=OFF -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_INSTALL=ON -DSDL_VULKAN=OFF -DSDL_LIBSAMPLERATE=OFF "-DCMAKE_INSTALL_PREFIX=$pwd/sdl-install"
+          if ($LASTEXITCODE) { throw 'SDL configuration failed' }
+          cmake --build build/sdl --config Release --parallel 4
+          if ($LASTEXITCODE) { throw 'SDL compilation failed' }
+          cmake --install build/sdl --config Release
+          if ($LASTEXITCODE) { throw 'SDL install failed' }
+      - name: Prepare Xbox adapter and verify ROM-free watch tables
+        shell: pwsh
+        run: |
+          python tools/uwp/widescreen/prepare.py switch-source
+          if ($LASTEXITCODE) { throw 'Source preparation failed' }
+          python tools/uwp/widescreen/fetch_tables.py switch-source staging/funcs
+          if ($LASTEXITCODE) { throw 'Function metadata preparation failed' }
+      - name: Configure and link complete UWP x64 frontend
+        shell: pwsh
+        run: |
+          cmake -S tools/uwp/widescreen -B build/game -G "$env:VS_GENERATOR" -A x64 -T ClangCL -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 "-DSWITCH_SOURCE=$pwd/switch-source" "-DSDL_SOURCE=$pwd/sdl-source" "-DCMAKE_PREFIX_PATH=$pwd/sdl-install"
+          if ($LASTEXITCODE) { throw 'Game configuration failed' }
+          cmake --build build/game --config Release --target pokemon-ds-wide --parallel 4
+          if ($LASTEXITCODE) { throw 'Complete game compilation failed' }
+      - name: Package and sign executable
+        shell: pwsh
+        run: ./tools/uwp/widescreen/package.ps1
+      - name: Publish installable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-ds-widescreen-xbox-experimental
+          path: dist/*
+          if-no-files-found: error
+      - name: Retain configuration diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: widescreen-build-diagnostics
+          path: |
+            build/game/CMakeCache.txt
+            build/game/CMakeFiles/CMakeConfigureLog.yaml
+            build/sdl/CMakeCache.txt
