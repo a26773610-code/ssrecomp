@@ -17,7 +17,6 @@
 */
 
 #include <string.h>
-#include <dirent.h>
 #include <inttypes.h>
 #include <vector>
 
