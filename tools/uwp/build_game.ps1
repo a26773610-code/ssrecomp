@@ -3,7 +3,7 @@
 # Do not upload ROM, gen/, compiled game EXE or private keys to public GitHub.
 param(
     [Parameter(Mandatory = $true)][string]$Rom,
-    [Parameter(Mandatory = $true)][string]$VcpkgRoot,
+    [string]$VcpkgRoot = "",
     [string]$SDL2SourceRoot = "",
     [int]$Jobs = 4
 )
@@ -14,10 +14,8 @@ $romPath = [System.IO.Path]::GetFullPath($Rom)
 if (-not (Test-Path -LiteralPath $romPath -PathType Leaf)) {
     throw "Missing user-owned SoulSilver ROM: $romPath"
 }
-$toolchain = Join-Path $VcpkgRoot 'scripts\buildsystems\vcpkg.cmake'
-$vcpkg = Join-Path $VcpkgRoot 'vcpkg.exe'
-if (-not (Test-Path $vcpkg)) { throw "Missing vcpkg.exe: $vcpkg" }
-if (-not (Test-Path $toolchain)) { throw "Missing vcpkg CMake toolchain: $toolchain" }
+# SDL2 is compiled from verified public WinRT sources in the same CMake
+# invocation as the game. No vcpkg or desktop SDL2 binaries are needed.
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw "Python 3 not found" }
 
 if ([string]::IsNullOrWhiteSpace($SDL2SourceRoot)) {
@@ -42,9 +40,7 @@ if ($LASTEXITCODE -ne 0) { throw "Recompiler failed" }
 python tools/apps.py --layout layouts/soulsilver-us.json gen
 if ($LASTEXITCODE -ne 0) { throw "App table generation failed" }
 
-Write-Host "Install SDL2 for WindowsStore x64"
-& $vcpkg install sdl2:x64-uwp
-if ($LASTEXITCODE -ne 0) { throw "vcpkg could not build SDL2 UWP" }
+Write-Host "SDL2 WinRT will be compiled statically from the public SDL2 source tree."
 
 $generatorOutput = [string]::Join([Environment]::NewLine, @(cmake --help))
 if ($generatorOutput -match 'Visual Studio 18 2026') {
@@ -61,8 +57,6 @@ $cmakeArgs = @(
     '-DCMAKE_SYSTEM_VERSION=10.0',
     '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=10.0.26100.0',
     '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0',
-    "-DCMAKE_TOOLCHAIN_FILE=$toolchain",
-    '-DVCPKG_TARGET_TRIPLET=x64-uwp',
     '-DSSR_UWP=ON',
     "-DSSR_SDL2_WINRT_SOURCE_DIR=$SDL2SourceRoot",
     "-DSSR_GENERATED_DIR=$root\gen",
@@ -76,5 +70,5 @@ Write-Host "Compile and link complete game frontend and generated ARM9 (private)
 cmake --build build/xbox-uwp-game --config Release --target ssrecomp --parallel $Jobs
 if ($LASTEXITCODE -ne 0) { throw "Full SoulSilver UWP native game build failed" }
 
-Write-Host "Native UWP x64 game linked. Packaging and Xbox hardware testing remain necessary."
+Write-Host "Native UWP x64 SoulSilver game linked. Packaging and Xbox hardware testing remain necessary."
 Write-Host "KEEP gen/ and build/xbox-uwp-game PRIVATE. They contain code from your ROM."
