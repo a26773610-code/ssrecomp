@@ -77,7 +77,7 @@ jobs:
         shell: cmd
         run: |
           call "%VCVARS%"
-          cl /nologo /std:c++17 /EHsc /W4 /WX /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\storage.cpp /Fo:%TEMP%\\ssrecomp_uwp_storage_app.obj
-          cl /nologo /std:c++17 /EHsc /W4 /WX /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\gamepad_reader.cpp /Fo:%TEMP%\\ssrecomp_uwp_reader_app.obj
+          cl /nologo /std:c++20 /EHsc /W4 /WX /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\storage.cpp /Fo:%TEMP%\\ssrecomp_uwp_storage_app.obj
+          cl /nologo /std:c++20 /EHsc /W4 /WX /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /DWINAPI_FAMILY=WINAPI_FAMILY_APP /c frontend\\uwp\\gamepad_reader.cpp /Fo:%TEMP%\\ssrecomp_uwp_reader_app.obj
 
 # Authorized diagnostic build: source-only; no ROM, generated game code, or private signing material.
