@@ -106,7 +106,7 @@ jobs:
         with:
           name: xbox-one-s-ssrecomp-single-screen-interpreter-beta-no-rom
           path: |
-            build/interpreter-beta-package/SSRecomp-Xbox-SingleScreen-InterpreterBeta-v01.appx
+            build/interpreter-beta-package/SSRecomp-Xbox-SingleScreen-InterpreterBeta-v02.appx
             build/interpreter-beta-package/SSRecomp-Xbox-InterpreterBeta.cer
             build/interpreter-beta-package/Microsoft.VCLibs.x64.14.00.appx
           if-no-files-found: error
