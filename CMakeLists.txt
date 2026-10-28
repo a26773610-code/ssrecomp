@@ -81,6 +81,10 @@ if(SSR_UWP)
 endif()
 add_library(gamecode OBJECT ${RC_GENERATED_SOURCES})
 target_include_directories(gamecode PRIVATE melonDS/src runtime "${SSR_GENERATED_DIR}")
+if(SSR_UWP)
+    # ROM-generated instruction files include melonDS and Windows headers too.
+    target_compile_definitions(gamecode PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+endif()
 # Generated code is huge and uniform; -O1 keeps build times reasonable.
 if(MSVC)
     target_compile_options(gamecode PRIVATE /O1 /bigobj /GR- /GS-)
