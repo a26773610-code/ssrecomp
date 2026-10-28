@@ -5,6 +5,7 @@
 #include <winrt/Windows.ApplicationModel.Core.h>
 #include <winrt/Windows.UI.Core.h>
 #include <winrt/Windows.Gaming.Input.h>
+#include <winrt/Windows.Foundation.Collections.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
 #include <wrl/client.h>
