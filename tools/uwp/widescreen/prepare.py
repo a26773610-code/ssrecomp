@@ -22,6 +22,8 @@ replace('melonDS/CMakeLists.txt', 'if (NOT APPLE)\n    set(CMAKE_EXE_LINKER_FLAG
         'if (NOT APPLE AND NOT MSVC)\n    set(CMAKE_EXE_LINKER_FLAGS_RELEASE')
 replace('melonDS/src/CMakeLists.txt', 'set(SSR_WIDE_FLAGS -O3 -ffast-math)',
         'set(SSR_WIDE_FLAGS /O2 /clang:-ffast-math)')
+replace('melonDS/src/GPU3D_Wide.cpp', 'namespace melonDS\n{',
+        '#ifdef _WIN32\n#undef near\n#undef far\n#endif\nnamespace melonDS\n{')
 for p in (src / 'frontend').glob('*'):
     if p.suffix in ('.h', '.cpp'):
         s = p.read_text()
