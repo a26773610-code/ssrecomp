@@ -1,4 +1,8 @@
-set (CMAKE_CXX_STANDARD 17)
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" AND MSVC)
+    set(CMAKE_CXX_STANDARD 20)
+else()
+    set(CMAKE_CXX_STANDARD 17)
+endif()
 
 include(FixInterfaceIncludes)
 
@@ -151,6 +155,10 @@ if (ENABLE_JIT)
 endif()
 
 target_include_directories(core INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" AND MSVC)
+    set_target_properties(core PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+    target_compile_options(core PRIVATE /std:c++20 /wd4146 /bigobj)
+endif()
 
 set(MELONDS_VERSION_SUFFIX "$ENV{MELONDS_VERSION_SUFFIX}" CACHE STRING "Suffix to add to displayed melonDS version")
 option(MELONDS_EMBED_BUILD_INFO "Embed detailed build info into the binary" OFF)
