@@ -2381,7 +2381,11 @@ void GPU3D::ExecuteCommand() noexcept
                     break;
 
                 default:
+                    #if defined(_MSC_VER) && !defined(__clang__)
+                    __assume(false);
+#else
                     __builtin_unreachable();
+#endif
                 }
             }
         }
