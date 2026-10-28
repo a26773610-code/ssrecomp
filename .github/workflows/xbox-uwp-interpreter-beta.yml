@@ -1,0 +1,112 @@
+name: Xbox One S single-screen interpreter beta APPX (NO ROM)
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - 'CMakeLists.txt'
+      - 'frontend/**'
+      - 'runtime/**'
+      - 'melonDS/**'
+      - 'tools/uwp/make_game_link_probe.py'
+      - 'tools/uwp/package_interpreter_beta.ps1'
+      - '.github/workflows/xbox-uwp-interpreter-beta.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/xbox-uwp-interpreter-beta.yml'
+  workflow_dispatch:
+
+jobs:
+  rom-free-interpreter-appx:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block ROM and privately generated code
+        shell: pwsh
+        run: |
+          if (Test-Path gen) { throw 'Private generated game code must not be in public checkout' }
+          if (Get-ChildItem . -Include *.nds,*.NDS -File -Recurse -ErrorAction SilentlyContinue) {
+            throw 'Found game ROM in public checkout; refusing to package'
+          }
+          [xml]$x = Get-Content frontend/uwp/interpreter_manifest.xml -Raw
+          if ($x.Package.Identity.Name -ne 'SSRecomp.XboxInterpreterBeta') { throw 'Unexpected interpreter beta app identity' }
+          if ($x.Package.Identity.ProcessorArchitecture -ne 'x64') { throw 'Expected x64 app' }
+      - name: Fetch public SDL2 WinRT source
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch release-2.32.10 https://github.com/libsdl-org/SDL.git .private-uwp-deps/SDL2
+          if ($LASTEXITCODE -ne 0) { throw 'SDL2 WinRT source checkout failed' }
+      - name: Create ROM-free synthetic recomp tables and public game UI metadata
+        shell: pwsh
+        run: |
+          python tools/uwp/make_game_link_probe.py build/interpreter-tables
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic table generation failed' }
+          python tools/apps.py --layout layouts/soulsilver-us.json build/interpreter-tables
+          if ($LASTEXITCODE -ne 0) { throw 'Public game UI metadata generation failed' }
+      - name: Configure real Xbox UWP frontend in interpreter fallback mode
+        shell: pwsh
+        run: |
+          $generators = (cmake --help) -join [Environment]::NewLine
+          if ($generators -match 'Visual Studio 18 2026') { $generator = 'Visual Studio 18 2026' }
+          elseif ($generators -match 'Visual Studio 17 2022') { $generator = 'Visual Studio 17 2022' }
+          else { throw 'Visual Studio UWP generator unavailable' }
+          $parameters = @(
+            '-S','.', '-B','build/interpreter-beta',
+            '-G', $generator, '-A', 'x64',
+            '-DCMAKE_SYSTEM_NAME=WindowsStore',
+            '-DCMAKE_SYSTEM_VERSION=10.0',
+            '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=10.0.26100.0',
+            '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0',
+            '-DSSR_UWP=ON',
+            '-DSSR_INTERP_FALLBACK=ON',
+            "-DSSR_SDL2_WINRT_SOURCE_DIR=$((Resolve-Path '.private-uwp-deps/SDL2').Path)",
+            "-DSSR_GENERATED_DIR=$((Resolve-Path 'build/interpreter-tables').Path)",
+            '-DENABLE_JIT=OFF',
+            '-DENABLE_OGLRENDERER=OFF'
+          )
+          & cmake @parameters
+          if ($LASTEXITCODE -ne 0) { throw 'Interpreter UWP CMake configure failed' }
+      - name: Compile and link actual ssrecomp merged UI plus melonDS ARM interpreter
+        shell: pwsh
+        run: |
+          & cmake --build build/interpreter-beta --config Release --target ssrecomp --parallel 4 -- /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'ROM-free Xbox interpreter EXE build failed' }
+          $candidate = Get-ChildItem build/interpreter-beta -Filter ssrecomp.exe -Recurse -File | Where-Object { $_.Directory.Name -eq 'Release' } | Select-Object -First 1
+          if (-not $candidate) { throw 'No UWP ssrecomp.exe emitted by linker' }
+          Write-Host "Xbox single-screen beta EXE: $($candidate.FullName) ($($candidate.Length) bytes)"
+          $candidate.FullName | Out-File -FilePath build/interpreter-beta-exe.txt -Encoding ascii
+      - name: Create test-signed ROM-free APPX package
+        shell: pwsh
+        run: |
+          $exe = (Get-Content build/interpreter-beta-exe.txt -Raw).Trim()
+          & ./tools/uwp/package_interpreter_beta.ps1 -GameExe $exe
+          if (-not $?) { throw 'Interpreter APPX packaging failed' }
+      - name: Verify signed package and manifest
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $appx = (Get-ChildItem build/interpreter-beta-package -Filter '*.appx' -File | Where-Object { $_.Name -like 'SSRecomp*' } | Select-Object -First 1)
+          if (-not $appx) { throw 'APPX absent' }
+          $zip = [IO.Compression.ZipFile]::OpenRead($appx.FullName)
+          try {
+            $entries = @($zip.Entries | ForEach-Object { $_.FullName })
+            if ($entries -notcontains 'ssrecomp.exe') { throw 'UWP package is missing the linked frontend EXE' }
+            if ($entries -contains 'rom.nds') { throw 'Refusing package with ROM' }
+            $entry = $zip.GetEntry('AppxManifest.xml')
+            if (-not $entry) { throw 'UWP package manifest missing' }
+            $reader = [IO.StreamReader]::new($entry.Open())
+            try { [xml]$manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            if ($manifest.Package.Identity.Name -ne 'SSRecomp.XboxInterpreterBeta') { throw 'Wrong APPX identity' }
+            Write-Host "ROM-free UWP interpreter beta packaged: $($appx.Length) bytes"
+            Write-Host ('Package content: ' + ($entries -join ', '))
+          } finally { $zip.Dispose() }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-one-s-ssrecomp-single-screen-interpreter-beta-no-rom
+          path: |
+            build/interpreter-beta-package/SSRecomp-Xbox-SingleScreen-InterpreterBeta-v01.appx
+            build/interpreter-beta-package/SSRecomp-Xbox-InterpreterBeta.cer
+            build/interpreter-beta-package/Microsoft.VCLibs.x64.14.00.appx
+          if-no-files-found: error
