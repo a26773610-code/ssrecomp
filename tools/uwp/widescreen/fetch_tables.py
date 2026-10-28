@@ -21,7 +21,7 @@ for name, sha, cfg, code in [
     ('w2-symbols','be2c125a700c23702ba1c5a4ef63e0e970bcc87a','w2_us','IRDO')]:
     d = symbols(name, 'https://github.com/fuddlesworth/pokebw2.git', sha, f'/config/{cfg}/arm9/**/symbols.txt')
     # Also include the main ARM9 symbols file.
-    run('git', '-C', d, 'sparse-checkout', 'add', '--no-cone', f'/config/{cfg}/arm9/symbols.txt')
+    run('git', '-C', d, 'sparse-checkout', 'add', f'/config/{cfg}/arm9/symbols.txt')
     run(sys.executable, src/'tools/bw2/funcmap.py', d/f'config/{cfg}/arm9', '-', out/f'{code}.txt')
 d = symbols('bw1-symbols', 'https://github.com/Project-Holon/aletheia.git',
             '0d05b6ccc61fcea090d8318a00af9f1634810e18', '/layout/function_addrs.tsv')
