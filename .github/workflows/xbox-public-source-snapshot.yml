@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           test ! -f gen/sources.cmake || { echo 'Unexpected generated game data in checkout'; exit 1; }
-          tar -czf ssrecomp-xbox-public-source.tar.gz --exclude=.git --exclude=build --exclude=gen --exclude='*.nds' --exclude='*.NDS' .
+          git archive --format=tar HEAD | gzip -9 > ssrecomp-xbox-public-source.tar.gz
           tar -tzf ssrecomp-xbox-public-source.tar.gz | head -20 || true
       - uses: actions/upload-artifact@v4
         with:
