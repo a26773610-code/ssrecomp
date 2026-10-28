@@ -8,6 +8,7 @@
 #include <winrt/base.h>
 #include <winrt/Windows.Gaming.Input.h>
 #include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.UI.Core.h>
 
 namespace ssrecomp::uwp {
 bool ReadXboxGamepad(GamepadState& state)
@@ -40,6 +41,27 @@ bool ReadXboxGamepad(GamepadState& state)
     state.right_trigger = static_cast<float>(reading.RightTrigger);
     return true;
 }
+
+void InstallXboxBackHandler()
+{
+    static bool installed = false;
+    if (installed) return;
+    try
+    {
+        using namespace winrt::Windows::UI::Core;
+        auto navigation = SystemNavigationManager::GetForCurrentView();
+        // UWP can interpret the controller's B as an app-wide Back request.
+        // The DS frontend reads B itself through Gamepad::GetCurrentReading().
+        navigation.BackRequested([](auto const&, BackRequestedEventArgs const& event) {
+            event.Handled(true);
+        });
+        installed = true;
+    }
+    catch (winrt::hresult_error const&)
+    {
+        // Controller polling must remain usable if navigation API is absent.
+    }
+}
 }
 #else
 namespace ssrecomp::uwp {
@@ -48,5 +70,6 @@ bool ReadXboxGamepad(GamepadState& state)
     state = {};
     return false;
 }
+void InstallXboxBackHandler() {}
 }
 #endif
