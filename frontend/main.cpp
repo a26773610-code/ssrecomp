@@ -1281,6 +1281,11 @@ int main(int argc, char** argv)
             fprintf(stderr, "cannot create window: %s\n", SDL_GetError());
             return 1;
         }
+#if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+        // The Xbox shell may interpret B as Back and terminate a UWP view;
+        // keep it in-app as the Nintendo DS Cancel button instead.
+        ssrecomp::uwp::InstallXboxBackHandler();
+#endif
         {
             // In every log: bug reports about the picture need to know this.
             SDL_RendererInfo info;
