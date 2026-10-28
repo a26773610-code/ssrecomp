@@ -12,12 +12,12 @@
 #include <cstdint>
 
 using namespace winrt;
-using namespace Windows::ApplicationModel::Core;
-using namespace Windows::UI::Core;
-using namespace Windows::Gaming::Input;
+using namespace winrt::Windows::ApplicationModel::Core;
+using namespace winrt::Windows::UI::Core;
+using namespace winrt::Windows::Gaming::Input;
 using Microsoft::WRL::ComPtr;
 
-struct DiagnosticView final : implements<DiagnosticView, IFrameworkView>
+struct DiagnosticView : implements<DiagnosticView, IFrameworkView>
 {
     CoreWindow window{nullptr};
     bool closed = false;
@@ -105,7 +105,7 @@ struct DiagnosticView final : implements<DiagnosticView, IFrameworkView>
     }
 };
 
-struct DiagnosticViewSource final : implements<DiagnosticViewSource, IFrameworkViewSource>
+struct DiagnosticViewSource : implements<DiagnosticViewSource, IFrameworkViewSource>
 {
     IFrameworkView CreateView() { return make<DiagnosticView>(); }
 };
