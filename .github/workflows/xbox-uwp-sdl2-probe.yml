@@ -1,0 +1,62 @@
+name: Xbox UWP SDL2 WinRT static runtime probe
+
+on:
+  push:
+    branches: [xbox-uwp-port]
+    paths:
+      - '.github/workflows/xbox-uwp-sdl2-probe.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/xbox-uwp-sdl2-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  sdl2-uwp-x64:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout public SDL2 2.32.10 source
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch release-2.32.10 https://github.com/libsdl-org/SDL.git sdl2-winrt-source
+          if ($LASTEXITCODE -ne 0) { throw "Could not obtain public SDL2 WinRT source" }
+          if (-not (Test-Path sdl2-winrt-source/src/main/winrt/SDL_winrt_main_NonXAML.cpp)) {
+            throw "SDL2 WinRT non-XAML application entry point missing"
+          }
+      - name: Configure SDL2 for genuine WindowsStore x64
+        shell: pwsh
+        run: |
+          $helpText = (cmake --help) -join "`n"
+          if ($helpText -match 'Visual Studio 18 2026') { $generator = 'Visual Studio 18 2026' }
+          elseif ($helpText -match 'Visual Studio 17 2022') { $generator = 'Visual Studio 17 2022' }
+          else { throw "Visual Studio CMake generator not found" }
+          Write-Host "Using $generator"
+          $args = @('-S','sdl2-winrt-source','-B','build/uwp-sdl2','-G',$generator,'-A','x64',
+            '-DCMAKE_SYSTEM_NAME=WindowsStore',
+            '-DCMAKE_SYSTEM_VERSION=10.0',
+            '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=10.0.26100.0',
+            '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0',
+            '-DSDL_TEST=OFF',
+            '-DSDL_SHARED=OFF',
+            '-DSDL_STATIC=ON',
+            '-DSDL_INSTALL=OFF',
+            '-DSDL_VULKAN=OFF',
+            '-DSDL_LIBSAMPLERATE=OFF')
+          & cmake @args
+          if ($LASTEXITCODE -ne 0) { throw "SDL2 x64 UWP CMake configure failed" }
+      - name: Compile SDL2 WinRT static runtime for Xbox
+        shell: pwsh
+        run: |
+          cmake --build build/uwp-sdl2 --config Release --target SDL2-static --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw "SDL2 WinRT static build failed" }
+      - name: Publish open-source SDL2 static build only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbox-uwp-sdl2-winrt-static-probe-no-game
+          path: |
+            build/uwp-sdl2/CMakeCache.txt
+            build/uwp-sdl2/**/Release/SDL2-static.lib
+          if-no-files-found: warn
