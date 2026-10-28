@@ -6,7 +6,7 @@
          IgnorableNamespaces="uap">
   <Identity Name="SSRecomp.XboxInterpreterBeta"
             Publisher="CN=SSRecompInterpreter"
-            Version="0.2.0.0"
+            Version="0.3.0.0"
             ProcessorArchitecture="x64"/>
   <Properties>
     <DisplayName>SSRecomp Xbox Single Screen Beta</DisplayName>
