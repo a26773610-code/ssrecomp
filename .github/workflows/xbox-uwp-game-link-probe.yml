@@ -74,8 +74,19 @@ jobs:
       - name: Compile and link entire Xbox UWP application (synthetic game table)
         shell: pwsh
         run: |
-          cmake --build build/full-game-probe --config Release --target ssrecomp --parallel 4
-          if ($LASTEXITCODE -ne 0) { throw "Entire native Xbox UWP frontend link failed" }
+          $ErrorActionPreference = 'Continue'
+          $logPath = 'build/full-game-probe/uwp-full-frontend-build.log'
+          # Capture the complete MSBuild output; normal GitHub logs can truncate errors.
+          & cmake --build build/full-game-probe --config Release --target ssrecomp --parallel 4 -- /verbosity:diagnostic /clp:Summary 2>&1 |
+            Out-String -Stream | Tee-Object -FilePath $logPath
+          $buildExitCode = $LASTEXITCODE
+          if ($buildExitCode -ne 0) {
+            Write-Host '=== Build failure diagnostics (first 80 relevant lines) ==='
+            $matches = @(Select-String -Path $logPath -Pattern 'error C[0-9]+','error LNK[0-9]+','error MSB[0-9]+','fatal error','unresolved external','cannot open','Build FAILED','failed with exit code' | Select-Object -First 80)
+            if ($matches.Count -gt 0) { $matches | ForEach-Object { Write-Host $_.Line } }
+            else { Get-Content $logPath -Tail 150 | ForEach-Object { Write-Host $_ } }
+            throw "Entire native Xbox UWP frontend build failed (exit $buildExitCode); see uploaded build log"
+          }
           Write-Host "Full native UWP game executable linked with synthetic data."
           Write-Host "THIS IS NOT A PLAYABLE GAME AND MUST NEVER BE DISTRIBUTED AS ONE."
       - name: Save ROM-free linkage diagnostics only
@@ -85,5 +96,6 @@ jobs:
           name: xbox-full-game-link-probe-build-metadata-no-rom-no-game
           path: |
             build/full-game-probe/CMakeCache.txt
+            build/full-game-probe/uwp-full-frontend-build.log
             build/public-link-probe-gen/sources.cmake
           if-no-files-found: warn
