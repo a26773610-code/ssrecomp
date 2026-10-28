@@ -26,6 +26,28 @@ jobs:
           assert root.find(ns + 'Applications') is not None
           print('UWP manifest: valid XML, x64, application declared')
           PY
+      - name: Test UWP code-image generation without a game ROM
+        shell: bash
+        run: |
+          python3 -m py_compile tools/recomp.py tools/ndsrom.py
+          python3 - <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+          import tempfile
+          sys.path.insert(0, 'tools')
+          import recomp
+          with tempfile.TemporaryDirectory() as scratch:
+              image = recomp.Section('public-synthetic-test', 0x02000000, bytes([0x01, 0x23, 0x45, 0x67]))
+              generated = recomp.write_images(scratch, [image], uwp=True)
+              assert generated == ['rc_image_000.cpp'], generated
+              source = pathlib.Path(scratch) / generated[0]
+              assert 'rc_image_0' in source.read_text()
+              assert '0x01, 0x23, 0x45, 0x67' in source.read_text()
+              subprocess.run(['g++', '-std=c++17', '-c', str(source), '-o',
+                              str(pathlib.Path(scratch) / 'rc_image_000.o')], check=True)
+          print('Synthetic image generated and compiled; no ROM or copyrighted data used')
+          PY
       - name: Build and test portable Xbox-to-DS input mapping
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror frontend/uwp/gamepad.cpp tests/uwp/gamepad_test.cpp -o /tmp/gamepad_test
