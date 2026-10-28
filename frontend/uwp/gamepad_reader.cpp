@@ -7,6 +7,7 @@
 #if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
 #include <winrt/base.h>
 #include <winrt/Windows.Gaming.Input.h>
+#include <winrt/Windows.Foundation.Collections.h>
 
 namespace ssrecomp::uwp {
 bool ReadXboxGamepad(GamepadState& state)
