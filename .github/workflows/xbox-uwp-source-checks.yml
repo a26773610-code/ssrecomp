@@ -4,7 +4,7 @@ on:
   push:
     branches: [xbox-uwp-port]
   pull_request:
-    branches: [xbox-uwp-port]
+    branches: [xbox-uwp-port, main]
   workflow_dispatch:
 
 jobs:
