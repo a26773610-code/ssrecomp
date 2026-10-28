@@ -9,11 +9,24 @@
 // Everything else is the screen exactly as the game drew it.
 #pragma once
 #include <cstdint>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <bit>
+#endif
 #include <cstring>
 #include <vector>
 #include "NDS.h"
 #include "GPU2D_Soft.h"
 #include "merged.h"
+
+// Portable bit scan for game UI background layer priority order.
+static inline unsigned ssrecomp_first_background_layer(unsigned mask)
+{
+#if defined(_MSC_VER) && !defined(__clang__)
+    return std::countr_zero(mask);
+#else
+    return __builtin_ctz(mask);
+#endif
+}
 
 class BattleWide
 {
@@ -334,7 +347,7 @@ public:
             for (int side = 0; side < 2; side++)
             {
                 const uint8_t c = LayerClass(top.flags[y * 256 + (side ? 255 : 0)]);
-                if (c & 0x0F) EdgePrio[y * 2 + side] = unit.BGCnt[__builtin_ctz(c)] & 3;
+                if (c & 0x0F) EdgePrio[y * 2 + side] = unit.BGCnt[ssrecomp_first_background_layer(c)] & 3;
             }
         for (int y = 0; y < 192; y++)
         {
@@ -352,7 +365,7 @@ public:
             if (!same) continue;
             RowFlat[y] = 1;
             RowColour[y] = 0xFF000000 | px[0];
-            if (bg) RowPrio[y] = unit.BGCnt[__builtin_ctz(bg)] & 3;
+            if (bg) RowPrio[y] = unit.BGCnt[ssrecomp_first_background_layer(bg)] & 3;
         }
 
         // With the 3D layer (BG0) over them where it is in front.
