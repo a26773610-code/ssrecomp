@@ -1081,6 +1081,14 @@ int main(int argc, char** argv)
             fprintf(stderr, "[Xbox UWP] Cannot resolve the per-app LocalState directory\n");
             return 2;
         }
+        // Xbox Developer Mode doesn't expose stderr on the TV. Preserve a log
+        // in LocalState, the same directory accessed through Xbox Device Portal.
+        const auto gameLog = local + "\\ssrecomp-game.log";
+        if (freopen(gameLog.c_str(), "w", stderr))
+        {
+            setvbuf(stderr, nullptr, _IOLBF, 0);
+            fprintf(stderr, "[Xbox UWP] SoulSilver single-screen game startup\n");
+        }
         xboxArguments = {
             "ssrecomp",
             local + "\\rom.nds",
