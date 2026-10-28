@@ -377,7 +377,7 @@ u8* GPU::GetUniqueBankPtr(u32 mask, u32 offset) noexcept
 const u8* GPU::GetUniqueBankPtr(u32 mask, u32 offset) const noexcept
 {
     if (!mask || (mask & (mask - 1)) != 0) return NULL;
-    int num = __builtin_ctz(mask);
+    int num = ssr_ctz32(mask);
     return &VRAM[num][offset & VRAMMask[num]];
 }
 
@@ -1102,7 +1102,7 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
 
             while (mapping != 0)
             {
-                u32 num = __builtin_ctz(mapping);
+                u32 num = static_cast<u32>(ssr_ctz32(mapping));
                 mapping &= ~(1 << num);
 
                 // hack for **speed**
@@ -1137,7 +1137,7 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
 
     while (banksToBeZeroed != 0)
     {
-        u32 num = __builtin_ctz(banksToBeZeroed);
+        u32 num = static_cast<u32>(ssr_ctz32(banksToBeZeroed));
         banksToBeZeroed &= ~(1 << num);
         gpu.VRAMDirty[num].Clear();
     }
