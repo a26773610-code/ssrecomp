@@ -18,6 +18,9 @@
 
 #include <string.h>
 #include "NDS.h"
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <bit>
+#endif
 #include "GPU.h"
 
 #include "ARMJIT.h"
@@ -27,6 +30,15 @@
 
 namespace melonDS
 {
+static inline int ssr_ctz32(u32 mask)
+{
+#if defined(_MSC_VER) && !defined(__clang__)
+    return static_cast<int>(std::countr_zero(mask));
+#else
+    return __builtin_ctz(mask);
+#endif
+}
+
 using Platform::Log;
 using Platform::LogLevel;
 
@@ -358,7 +370,7 @@ void GPU::InitFramebuffers() noexcept
 u8* GPU::GetUniqueBankPtr(u32 mask, u32 offset) noexcept
 {
     if (!mask || (mask & (mask - 1)) != 0) return NULL;
-    int num = __builtin_ctz(mask);
+    int num = ssr_ctz32(mask);
     return &VRAM[num][offset & VRAMMask[num]];
 }
 
