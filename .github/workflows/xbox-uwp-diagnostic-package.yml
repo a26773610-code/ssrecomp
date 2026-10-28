@@ -7,6 +7,12 @@ on:
       - 'frontend/uwp/diagnostic_main.cpp'
       - 'frontend/uwp/diagnostic_manifest.xml'
       - '.github/workflows/xbox-uwp-diagnostic-package.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/uwp/diagnostic_main.cpp'
+      - 'frontend/uwp/diagnostic_manifest.xml'
+      - '.github/workflows/xbox-uwp-diagnostic-package.yml'
   workflow_dispatch:
 
 jobs:
