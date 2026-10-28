@@ -44,7 +44,7 @@ $toolset = Get-ChildItem $sdk -Directory | Sort-Object Name -Descending | Where-
 if (-not $toolset) { throw "UWP makeappx tool unavailable" }
 $makeappx = Join-Path $toolset.FullName 'x64\makeappx.exe'
 $signtool = Join-Path $toolset.FullName 'x64\signtool.exe'
-$appx = Join-Path $destination 'SSRecomp-Xbox-SingleScreen-InterpreterBeta-v02.appx'
+$appx = Join-Path $destination 'SSRecomp-Xbox-SingleScreen-InterpreterBeta-v03.appx'
 & $makeappx pack /d $stage /p $appx /o
 if ($LASTEXITCODE -ne 0) { throw "Interpreter APPX packaging failed" }
 $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=SSRecompInterpreter' -KeyUsage DigitalSignature -FriendlyName 'SSRecomp Xbox ROM-free beta test cert' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy NonExportable -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(90) -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
