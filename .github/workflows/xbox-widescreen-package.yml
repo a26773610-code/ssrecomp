@@ -60,10 +60,13 @@ jobs:
       - name: Configure and link complete UWP x64 frontend
         shell: pwsh
         run: |
-          cmake -S tools/uwp/widescreen -B build/game -G "$env:VS_GENERATOR" -A x64 -T ClangCL -DCMAKE_SYSTEM_NAME=WindowsStore '-DCMAKE_SYSTEM_VERSION=10.0' "-DSWITCH_SOURCE=$pwd/switch-source" "-DSDL_SOURCE=$pwd/sdl-source" "-DCMAKE_PREFIX_PATH=$pwd/sdl-install"
-          if ($LASTEXITCODE) { throw 'Game configuration failed' }
-          cmake --build build/game --config Release --target pokemon-ds-wide --parallel 4
-          if ($LASTEXITCODE) { throw 'Complete game compilation failed' }
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual Studio build tools missing' }
+          $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvarsall.bat'
+          $configure = 'cmake -S tools/uwp/widescreen -B build/game -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DSWITCH_SOURCE="' + "$pwd/switch-source" + '" -DSDL_SOURCE="' + "$pwd/sdl-source" + '" -DCMAKE_PREFIX_PATH="' + "$pwd/sdl-install" + '"'
+          cmd /c ('call "' + $vcvars + '" amd64 uwp && ' + $configure + ' && cmake --build build/game --parallel 4')
+          if ($LASTEXITCODE) { throw 'Complete UWP game build failed' }
       - name: Package and sign executable
         shell: pwsh
         run: ./tools/uwp/widescreen/package.ps1

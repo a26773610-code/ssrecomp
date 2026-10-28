@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$exe = Get-ChildItem build/game -Filter 'pokemon-ds-wide.exe' -Recurse | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+$exe = Get-ChildItem build/game -Filter 'pokemon-ds-wide.exe' -Recurse | Select-Object -First 1
 if (-not $exe) { throw 'Complete frontend executable missing' }
 Copy-Item $exe.FullName staging/pokemon-ds-wide.exe
 Copy-Item tools/uwp/widescreen/AppxManifest.xml staging/AppxManifest.xml
