@@ -77,3 +77,40 @@ Diagnostic v0.2 | WinRT exception escaped CoreApplication | HRESULT=0x80010106
 Version **0.3.0.0** removes the forced COM apartment initialization and lets UWP's `CoreApplication::Run` manage its startup apartment, consistent with Microsoft's C++/WinRT Core App example. The standalone diagnostic workflow also checks that a future change does not reintroduce `init_apartment(` in the startup file. Package: `SSRecomp-Xbox-UWP-Diagnostic-v03.appx`, artifact: `xbox-uwp-diagnostic-v03-not-game`.
 
 To retest, uninstall the older app (each GitHub run issues a distinct temporary self-signed signing certificate), install the versioned APPX in Xbox Developer Mode with the included UWP VCLibs x64 framework dependency, and launch. If it still exits, retrieve `LocalState/ssrecomp-diagnostic.log` via Xbox Device Portal and check for v0.3 log entries. Compiling successfully on Windows is **not** confirmation that startup works on Xbox.
+
+## Xbox One S native SoulSilver game build track (separate from diagnostic)
+
+**Important:** Successful installation of the diagnostic is not a playable SoulSilver build.
+
+An Xbox One S hardware test proved that the UWP diagnostic v0.3 could start and draw colors.
+Pressing B painted red and returned to the dashboard because Xbox maps B to
+\`SystemNavigationManager.BackRequested\` in UWP apps. The diagnostic now calls
+\`BackRequestedEventArgs.Handled(true)\` to keep B available for the DS cancel button.
+This fix is in diagnostic v0.4 and still needs a console retest.
+
+The actual game port has a separate build track:
+
+1. The user's US SoulSilver ROM was verified *locally* against all 121 public code-section hashes. The game ROM itself and all generated game source code remain private.
+2. \`tools/recomp.py --uwp\` now produces MSVC-compatible \`rc_image_###.cpp\` arrays instead of ELF/GAS \`.incbin\` assembly for the ROM code sections. The existing Linux/macOS/Android generator remains unchanged when \`--uwp\` is not used.
+3. \`runtime/recomp_gen.h\` now supports MSVC branch hints and forced inlining.
+4. The \`SSR_UWP\` CMake option handles MSVC's \`/bigobj\` and optimization flags, removes libpng screenshot dependency, and requires SDL2's WinRT non-XAML entry point for the game's existing SDL frontend.
+5. \`frontend/main.cpp\` uses an app-local ROM at \`LocalState/rom.nds\` with save/config files in LocalState when launched via the Xbox/UWP app icon.
+6. \`tools/uwp/build_game.ps1\` is a local-only build entry point. It verifies the ROM, generates the recompiled code, builds SDL2 for \`x64-uwp\` using vcpkg, then configures and links the game under \`CMAKE_SYSTEM_NAME=WindowsStore\`. Its output is not yet demonstrated to compile successfully end-to-end.
+7. \`.github/workflows/xbox-uwp-core-build.yml\` compiles the actual melonDS static hardware core for UWP x64 **without any ROM**. The CMake WindowsStore version and unsupported directory-header probe were fixed after the first failed runs.
+
+### Private native build from a Windows computer
+
+\`\`\`powershell
+.\tools\uwp\build_game.ps1 -Rom "C:\MyGames\SoulSilver.nds" -VcpkgRoot "C:\vcpkg"
+\`\`\`
+
+Prerequisites: Windows + Visual Studio 2022/2026 with UWP C++ and Windows SDK, Python 3,
+CMake, Git, vcpkg and sufficient free RAM/disk for the 1.7 million generated ARM9
+instructions. The script will NOT upload or publish the ROM or generated source.
+A successful local link must still be followed by AppContainer packaging and
+physical Xbox rendering/audio/input/save verification.
+
+The next hardware milestone is **a native melonDS core library compiled for UWP x64**.
+After that, the game/frontend must be linked with SDL2 WinRT and the user's
+private generated code; packaging then must include the required SDL runtime and
+app manifest. Do not describe a core-only or diagnostic APPX as the full game.
