@@ -51,6 +51,9 @@
 #endif
 #if defined(_WIN32) && defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
 #include "uwp/storage.h"
+#if defined(SSR_INTERP_FALLBACK)
+#include "uwp/missing_rom.h"
+#endif
 #endif
 #include "layout.h"
 #include "ui.h"
@@ -1089,13 +1092,25 @@ int main(int argc, char** argv)
             setvbuf(stderr, nullptr, _IOLBF, 0);
             fprintf(stderr, "[Xbox UWP] SoulSilver single-screen game startup\n");
         }
+#if defined(SSR_INTERP_FALLBACK)
+        // The public ROM-free beta runs the real melonDS interpreter with
+        // ssrecomp's merged frontend while the private ARM9 UWP build is tested.
+        // Without this flag its synthetic link-test chunk must never be executed.
+        if (!ssrecomp::uwp::WaitForPrivateRom(local + "\\rom.nds"))
+            return 1;
+#endif
         xboxArguments = {
             "ssrecomp",
             local + "\\rom.nds",
             "--save", local + "\\soulsilver.sav",
             "--config", local + "\\ssrecomp.cfg",
+            "--layout", "merged",
             "--fullscreen",
         };
+#if defined(SSR_INTERP_FALLBACK)
+        xboxArguments.push_back("--interp");
+        fprintf(stderr, "[Xbox UWP] Interpreter fallback mode; ARM9 static recompilation disabled\n");
+#endif
         for (auto& argument : xboxArguments)
             xboxArgv.push_back(argument.data());
         argc = static_cast<int>(xboxArgv.size());
