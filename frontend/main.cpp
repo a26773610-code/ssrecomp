@@ -20,7 +20,7 @@
 #include <tuple>
 #include <deque>
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(SSR_UWP)
 #include <SDL.h>
 #else
 #include <SDL2/SDL.h>
