@@ -41,7 +41,7 @@ jobs:
             throw "No Visual Studio CMake generator found"
           }
           Write-Host "Using CMake generator: $generator"
-          cmake -S melonDS -B build/uwp-core -G "$generator" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0.26100.0 -DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0 -DBUILD_QT_SDL=OFF -DENABLE_JIT=OFF -DENABLE_OGLRENDERER=OFF -DENABLE_GDBSTUB=OFF -DENABLE_LTO_RELEASE=OFF -DSSR_PORTABLE_X86=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+          cmake -S melonDS -B build/uwp-core -G "$generator" -A x64 '-DCMAKE_SYSTEM_NAME=WindowsStore' '-DCMAKE_SYSTEM_VERSION=10.0' '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=10.0.26100.0' '-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION=10.0.17763.0' -DBUILD_QT_SDL=OFF -DENABLE_JIT=OFF -DENABLE_OGLRENDERER=OFF -DENABLE_GDBSTUB=OFF -DENABLE_LTO_RELEASE=OFF -DSSR_PORTABLE_X86=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
           if ($LASTEXITCODE -ne 0) { throw "melonDS UWP CMake configuration failed" }
       - name: Compile melonDS static core for UWP x64
         shell: pwsh
