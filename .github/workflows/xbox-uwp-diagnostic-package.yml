@@ -21,7 +21,7 @@ jobs:
           if (-not $vs) { throw "MSVC installation unavailable" }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
           New-Item -ItemType Directory -Force staging | Out-Null
-          $cmd = 'call "' + $vcvars + '" && cl /nologo /std:c++17 /EHsc /await /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MD /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib'
+          $cmd = 'call "' + $vcvars + '" && cl /nologo /std:c++17 /EHsc /DWINAPI_FAMILY=WINAPI_FAMILY_APP /D_UNICODE /DUNICODE /MT /Fe:staging\SoulSilverUwpDiagnostic.exe frontend\uwp\diagnostic_main.cpp /link /APPCONTAINER /SUBSYSTEM:WINDOWS WindowsApp.lib d3d11.lib dxgi.lib'
           cmd /c $cmd
           if ($LASTEXITCODE -ne 0) { throw "UWP diagnostic compiler failed: $LASTEXITCODE" }
       - name: Create UWP manifest and diagnostic tiles
@@ -61,6 +61,21 @@ jobs:
           Export-Certificate -Cert $cert -FilePath SSRecomp-Xbox-UWP-Diagnostic.cer | Out-Null
           & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My SSRecomp-Xbox-UWP-Diagnostic.appx
           if ($LASTEXITCODE -ne 0) { throw "APPX signing failed" }
+      - name: Inspect generated APPX identity and architecture
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path SSRecomp-Xbox-UWP-Diagnostic.appx))
+          try {
+            $manifest = $archive.Entries | Where-Object { $_.FullName -eq "AppxManifest.xml" } | Select-Object -First 1
+            if (-not $manifest) { throw "Missing AppxManifest.xml" }
+            $stream = $manifest.Open()
+            $reader = [System.IO.StreamReader]::new($stream)
+            try { $xml = [xml]$reader.ReadToEnd() } finally { $reader.Dispose(); $stream.Dispose() }
+            $identity = $xml.Package.Identity
+            if ($identity.ProcessorArchitecture -ne "x64") { throw "Incorrect package architecture" }
+            Write-Host "Package $($identity.Name) architecture $($identity.ProcessorArchitecture)"
+          } finally { $archive.Dispose() }
       - uses: actions/upload-artifact@v4
         with:
           name: xbox-uwp-diagnostic-not-game
