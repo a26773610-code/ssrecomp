@@ -25,6 +25,9 @@
 
 #include <initializer_list>
 #include <algorithm>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <bit>
+#endif
 
 namespace melonDS
 {
