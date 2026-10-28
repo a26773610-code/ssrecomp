@@ -25,3 +25,11 @@ __pycache__/
 /gen.new/
 /dist/
 .DS_Store
+
+# Per-user Xbox UWP builds and proprietary ROM-derived artifacts: never commit.
+/.private-uwp-deps/
+*.appx
+*.msix
+*.msixbundle
+*.cer
+*.pfx
