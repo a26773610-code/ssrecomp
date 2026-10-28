@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Real game application manifest; distinct identity from the diagnostic. -->
+<!-- Private game builds must use code generated locally from the user's own ROM. -->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         IgnorableNamespaces="uap">
+  <Identity Name="SSRecomp.XboxSoulSilver"
+            Publisher="CN=SSRecompGame"
+            Version="0.1.0.0"
+            ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Pokémon SoulSilver — Single Screen</DisplayName>
+    <PublisherDisplayName>SSRecomp private port</PublisherDisplayName>
+    <Logo>StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.22621.0" />
+    <PackageDependency Name="Microsoft.VCLibs.140.00"
+                       MinVersion="14.0.24217.0"
+                       Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"/>
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us"/>
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="ssrecomp.exe" EntryPoint="SSRecomp.Game">
+      <uap:VisualElements DisplayName="SoulSilver Single Screen"
+                          Description="Private single-screen SoulSilver recompiled player for Xbox Developer Mode"
+                          BackgroundColor="#12243D"
+                          Square150x150Logo="Square150x150Logo.png"
+                          Square44x44Logo="Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Wide310x150Logo.png"/>
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+</Package>
